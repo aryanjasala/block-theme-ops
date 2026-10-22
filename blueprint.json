@@ -1,0 +1,34 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Block Theme Ops demo",
+		"author": "aryanjasala"
+	},
+	"landingPage": "/wp-admin/themes.php?page=block-theme-ops",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"features": {
+		"networking": true
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "git:directory",
+				"url": "https://github.com/aryanjasala/block-theme-ops",
+				"ref": "main"
+			},
+			"options": {
+				"activate": true,
+				"targetFolderName": "block-theme-ops"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; wp_set_current_user( 1 ); $theme = get_stylesheet(); $dir = get_stylesheet_directory(); $p = function ( $text ) { return \"\\n\\n<!-- wp:paragraph {\\\"align\\\":\\\"center\\\"} -->\\n<p class=\\\"has-text-align-center\\\">\" . $text . \"</p>\\n<!-- /wp:paragraph -->\"; }; $add = function ( $type, $slug, $title, $content, $area = '' ) use ( $theme ) { $id = wp_insert_post( array( 'post_type' => $type, 'post_status' => 'publish', 'post_name' => $slug, 'post_title' => $title, 'post_content' => $content ) ); wp_set_object_terms( $id, $theme, 'wp_theme' ); if ( $area ) { wp_set_object_terms( $id, $area, 'wp_template_part_area' ); } do_action( 'save_post_' . $type, $id, get_post( $id ), true ); return $id; }; $header = file_get_contents( $dir . '/parts/header.html' ); $add( 'wp_template_part', 'header', 'Header', $header . $p( 'Free delivery this week' ), 'header' ); $add( 'wp_template_part', 'footer', 'Footer', file_get_contents( $dir . '/parts/footer.html' ) . $p( 'Open every day, 7 am to 4 pm.' ), 'footer' ); $add( 'wp_template', 'page', 'Pages', file_get_contents( $dir . '/templates/page.html' ) ); $add( 'wp_template', 'wp-custom-template-spring-sale', 'Spring sale', '<!-- wp:paragraph --><p>Spring sale: 20% off sourdough.</p><!-- /wp:paragraph -->' ); file_put_contents( $dir . '/parts/header.html', $header . \"\\n\\n<!-- wp:separator -->\\n<hr class=\\\"wp-block-separator has-alpha-channel-opacity\\\"/>\\n<!-- /wp:separator -->\" );"
+		}
+	]
+}

@@ -1,0 +1,16 @@
+# The WordPress extension (szepeviktor/phpstan-wordpress) is loaded by phpstan/extension-installer.
+parameters:
+	level: 6
+	paths:
+		- block-theme-ops.php
+		- uninstall.php
+		- src
+	dynamicConstantNames:
+		- BLOCK_THEME_OPS_GITHUB_TOKEN
+	scanFiles:
+		- vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
+	bootstrapFiles:
+		- tests/phpstan-bootstrap.php
+	ignoreErrors:
+		# WordPress passes untyped arrays everywhere (hook arguments, options, REST data).
+		- identifier: missingType.iterableValue
