@@ -437,15 +437,41 @@ class Drift {
 	}
 
 	/**
-	 * Display name of a user, or a placeholder.
+	 * Display name of a user, or what stands in for one.
 	 *
 	 * @param int $user_id User ID.
 	 * @return string
 	 */
 	public static function user_name( int $user_id ): string {
 		$user = $user_id ? get_userdata( $user_id ) : false;
+		if ( $user ) {
+			$name = (string) $user->display_name;
+		} elseif ( ! $user_id ) {
+			// Saved with no user logged in: WP-CLI, WP-Cron, or an undo from another plugin.
+			$name = __( 'System', 'block-theme-ops' );
+		} else {
+			/* translators: %d: user ID. */
+			$name = sprintf( __( 'Deleted user #%d', 'block-theme-ops' ), $user_id );
+		}
 
-		return $user ? (string) $user->display_name : __( 'Unknown', 'block-theme-ops' );
+		/**
+		 * Filters the name shown for whoever saved, edited or reset an item.
+		 *
+		 * @param string $name    Display name, "System" when no user was logged in, or "Deleted user #ID".
+		 * @param int    $user_id User ID, 0 for none.
+		 */
+		return self::text_or( apply_filters( 'block_theme_ops_user_name', $name, $user_id ), $name );
+	}
+
+	/**
+	 * A filtered value when it is non-empty text, else the default.
+	 *
+	 * @param mixed  $value    Filtered value.
+	 * @param string $fallback Default.
+	 * @return string
+	 */
+	public static function text_or( $value, string $fallback ): string {
+		return is_string( $value ) && '' !== trim( $value ) ? $value : $fallback;
 	}
 
 	/**

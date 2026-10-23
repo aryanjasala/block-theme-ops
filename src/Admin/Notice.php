@@ -14,8 +14,8 @@ use AryanX\BlockThemeOps\Service;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Tells theme managers, on every admin screen, which Site Editor changes now
- * hide a newer theme file, until they review or dismiss it.
+ * Tells theme managers which Site Editor changes now hide a newer theme file,
+ * on the screens where themes are looked after, until they review or dismiss it.
  */
 final class Notice implements Service {
 
@@ -102,6 +102,44 @@ final class Notice implements Service {
 	}
 
 	/**
+	 * Screens that show the notice.
+	 *
+	 * @return string[] Screen IDs.
+	 */
+	public static function screens(): array {
+		$default = array( 'dashboard', 'themes', 'site-editor', 'update-core' );
+
+		/**
+		 * Filters the admin screens that show the notice about Site Editor changes hiding newer theme files.
+		 * Theme Drift itself never shows it, and Site Health always carries the same finding.
+		 *
+		 * @param string[] $screens Screen IDs. Default dashboard, themes, site-editor and update-core.
+		 */
+		return self::screen_ids( apply_filters( 'block_theme_ops_notice_screens', $default ), $default );
+	}
+
+	/**
+	 * The screen IDs in a filtered value, or the default when it holds none.
+	 *
+	 * @param mixed    $value    Filtered value.
+	 * @param string[] $fallback Default.
+	 * @return string[]
+	 */
+	private static function screen_ids( $value, array $fallback ): array {
+		if ( ! is_array( $value ) ) {
+			return $fallback;
+		}
+		$ids = array();
+		foreach ( $value as $id ) {
+			if ( is_string( $id ) && '' !== $id ) {
+				$ids[] = $id;
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
 	 * Prints the notice.
 	 */
 	public function render(): void {
@@ -110,7 +148,7 @@ final class Notice implements Service {
 		}
 
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( $screen && 'appearance_page_' . DriftPage::SLUG === $screen->id ) {
+		if ( ! $screen || 'appearance_page_' . DriftPage::SLUG === $screen->id || ! in_array( $screen->id, self::screens(), true ) ) {
 			return;
 		}
 
