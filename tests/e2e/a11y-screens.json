@@ -1,0 +1,64 @@
+{
+  "$comment": "Screens tests/e2e/a11y.spec.js checks with axe-core. This file belongs to the plugin: apply-template.py only writes it when it is missing. The fields are described in docs/DEVELOPMENT.md.",
+  "include": ["#wpbody-content"],
+  "exclude": [],
+  "screens": [
+    {
+      "name": "Appearance > Theme Drift on a theme with no Site Editor changes",
+      "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
+      "url": "/wp-admin/themes.php?page=block-theme-ops",
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Theme Drift with every status",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" }
+      ],
+      "url": "/wp-admin/themes.php?page=block-theme-ops",
+      "steps": [{ "waitFor": ".bto-table" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "One template part with the three-way view",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" }
+      ],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&item={ids.header}",
+      "steps": [{ "waitFor": "#bto-diff-theme" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Theme Drift backups",
+      "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=backups",
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Theme Drift settings with a GitHub connection",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        ["eval", "update_option( 'block_theme_ops_settings', array( 'notify' => true, 'repo' => 'corner-bakery/website', 'branch' => 'main', 'path' => 'wp-content/themes/corner-bakery', 'token' => 'test-token' ), false );"]
+      ],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=settings",
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Dashboard notice after a theme update changed an edited part",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
+        { "wp": ["block-theme-ops", "check"], "mayFail": true }
+      ],
+      "url": "/wp-admin/index.php",
+      "include": [".block-theme-ops-notice"],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    }
+  ],
+  "skip": {}
+}
