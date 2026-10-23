@@ -24,14 +24,14 @@ Templates and parts are looked up in the active theme first, then in its parent,
 ## Reset, undo and keep
 
 - **Reset** deletes the database copy of a template or part, or empties the global styles layer, so the theme file takes over. A backup goes into a private `bto_backup` post first. Items without a theme file cannot be reset.
-- **Undo** puts the copy back with its original post ID, theme, area and snapshot, for 30 days by default (`block_theme_ops_backup_days`). It refuses when someone customized the item again since the reset.
+- **Undo** puts the copy back with its original post ID, theme, area and snapshot, for 30 days by default (`block_theme_ops_backup_days`). It refuses when someone customized the item again since the reset, or when the same database copy is back already, say through an undo in an activity log. The Backups tab says which one up front, instead of offering Undo.
 - **Keep** marks the copy as wanted. It drops out of the list, the notice, Site Health and the email until the theme file changes again. **List again** undoes it.
 
 ## Checks and alerts
 
 The theme files are checked right after WordPress updates or replaces the active theme or its parent (`upgrader_process_complete`), once a day by WP-Cron for deploys that bypass WordPress, and on `wp block-theme-ops check`. Items that went `theme-changed` since the last check, and are not kept, raise:
 
-- an admin notice for everyone with the capability, with a count on the Theme Drift menu, until they are reset, kept or dismissed
+- a notice for everyone with the capability on the Dashboard, Themes, Site Editor and Updates screens (`block_theme_ops_notice_screens`), and a count on the Theme Drift menu, until they are reset, kept or dismissed
 - a Site Health recommendation
 - an email to the site admin, when turned on under **Settings**
 
@@ -49,7 +49,7 @@ The zip and the pull request hold the items as theme files, by path inside the t
 
 The zip puts them in a folder named after the theme. The pull request puts them under the **theme folder in the repository** you set, as one commit on a new branch (`block-theme-ops/<theme>-<date>-<time>`), through the GitHub API: read the base branch, create a tree and a commit, create the branch, open the pull request. The description lists each item, its file, its status, who last edited it and when.
 
-The token comes from, in order: the `BLOCK_THEME_OPS_GITHUB_TOKEN` constant, an environment variable with that name, or the one saved on the settings screen. A saved token is never shown again. Use a fine-grained token for the one repository, with read and write access to **Contents** and **Pull requests**.
+The token comes from, in order: the `BLOCK_THEME_OPS_GITHUB_TOKEN` constant, an environment variable with that name, or the one saved on the settings screen. A saved token is never shown again. Until a repository and a token are set, **Open pull request** stays disabled, with a link to the settings. Use a fine-grained token for the one repository, with read and write access to **Contents** and **Pull requests**.
 
 ## Hooks
 
@@ -62,6 +62,9 @@ The token comes from, in order: the `BLOCK_THEME_OPS_GITHUB_TOKEN` constant, an 
 | `block_theme_ops_notify_recipients` | filter | `( string[] $emails, array[] $items )`. Who gets the email. Default the site admin email |
 | `block_theme_ops_notify_email` | filter | `( array $email, array[] $items )`. `to`, `subject`, `message` and `headers` before `wp_mail()`. An empty subject or message sends nothing |
 | `block_theme_ops_notice_message` | filter | `( string $message, array[] $items )`. The admin notice text. Empty hides it |
+| `block_theme_ops_notice_screens` | filter | `( string[] $screen_ids )`. Screens that show the notice. Default `dashboard`, `themes`, `site-editor` and `update-core`. Theme Drift itself never shows it. An empty list shows it nowhere; Site Health still has it |
+| `block_theme_ops_undo_blocked_message` | filter | `( string $message, string $reason, array $backup )`. What the Backups tab and Undo say when a reset cannot be undone. `$reason` is `restored` (the same copy is back already) or `customized` (customized again since). Empty falls back to the default |
+| `block_theme_ops_user_name` | filter | `( string $name, int $user_id )`. The name shown for whoever saved, edited or reset an item. Default the display name, `System` when no user was logged in (WP-CLI, WP-Cron, another plugin's undo) or `Deleted user #ID`. Empty falls back to the default |
 | `block_theme_ops_backup_days` | filter | `( int $days )`. How long a reset can be undone. Default 30, kept between 1 and 3650 |
 | `block_theme_ops_cleanup_batch` | filter | `( int $batch )`. Expired backups one daily run deletes. Default 50, kept between 1 and 500 |
 | `block_theme_ops_export_files` | filter | `( array $files, array[] $items, string $context )`. Path => contents before the zip or pull request. `$context` is `zip`, `pr`, `cli` or `ability`. Paths that leave the theme folder are dropped |
@@ -102,7 +105,7 @@ add_filter( 'block_theme_ops_export_files', function ( $files ) {
 } );
 ```
 
-Each item is an array: `id` (post ID), `key` (`templates/<slug>`, `parts/<slug>` or `styles`), `type`, `slug`, `title`, `theme`, `file` (path inside the theme, empty when none), `file_theme` (the child or the parent), `status`, `probable`, `kept`, `modified` and `file_modified` (Unix time), `author` and `author_name` (who last saved it).
+Each item is an array: `id` (post ID), `key` (`templates/<slug>`, `parts/<slug>` or `styles`), `type`, `slug`, `title`, `theme`, `file` (path inside the theme, empty when none), `file_theme` (the child or the parent), `status`, `probable`, `kept`, `modified` and `file_modified` (Unix time), `author` and `author_name` (who last saved it, or `System` when no user was logged in).
 
 JavaScript, through `wp.hooks`, on Appearance > Theme Drift:
 

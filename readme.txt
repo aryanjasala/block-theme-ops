@@ -46,7 +46,7 @@ To tell those apart, Block Theme Ops keeps a snapshot of the theme file every ti
 
 = Know when a deploy left changes behind =
 
-Right after WordPress updates the active theme, and once a day for deploys through Git, SFTP or rsync, Block Theme Ops compares the theme files. Items that went "theme changed" show in an admin notice and in Site Health, and in an email if you turn that on.
+Right after WordPress updates the active theme, and once a day for deploys through Git, SFTP or rsync, Block Theme Ops compares the theme files. Items that went "theme changed" show in a notice on the Dashboard, Themes, Site Editor and Updates screens, in Site Health, and in an email if you turn that on.
 
 = From the command line =
 
