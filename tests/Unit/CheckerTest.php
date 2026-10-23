@@ -179,4 +179,39 @@ final class CheckerTest extends PluginTestCase {
 		$alerts->remove( 4 );
 		$this->assertArrayNotHasKey( Alerts::OPTION, $this->options );
 	}
+
+	public function test_the_notice_shows_on_theme_screens_only(): void {
+		$this->drifted()->run( 'cron' );
+		$themes = new Themes();
+		$drift  = $this->getMockBuilder( Drift::class )->setConstructorArgs( array( $themes ) )->onlyMethods( array( 'get' ) )->getMock();
+		$drift->method( 'get' )->willReturnCallback( fn() => ( new Drift( $themes ) )->item_for_post( $this->posts[7] ) );
+		$notice = new Notice( $drift, new Alerts() );
+		$screen = 'edit-post';
+		Functions\when( 'get_current_screen' )->alias(
+			static function () use ( &$screen ) {
+				return (object) array( 'id' => $screen );
+			}
+		);
+		Functions\when( 'wp_nonce_field' )->justReturn( '' );
+		Functions\when( 'add_query_arg' )->alias( fn( $args, $url ) => $url . '?' . http_build_query( $args ) );
+		$render = static function () use ( $notice ): string {
+			ob_start();
+			$notice->render();
+			return (string) ob_get_clean();
+		};
+
+		$this->assertSame( array( 'dashboard', 'themes', 'site-editor', 'update-core' ), Notice::screens() );
+		$this->assertSame( '', $render(), 'not on the Posts screen, or any other plugin\'s' );
+
+		$screen = 'dashboard';
+		$this->assertStringContainsString( 'block-theme-ops-notice', $render() );
+
+		$screen = 'appearance_page_block-theme-ops';
+		$this->assertSame( '', $render(), 'Theme Drift lists the items itself' );
+
+		$screen = 'edit-post';
+		Filters\expectApplied( 'block_theme_ops_notice_screens' )->andReturn( array( 'edit-post', 42 ) );
+		$this->assertSame( array( 'edit-post' ), Notice::screens() );
+		$this->assertStringContainsString( 'block-theme-ops-notice', $render() );
+	}
 }

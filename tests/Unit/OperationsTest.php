@@ -161,4 +161,58 @@ final class OperationsTest extends PluginTestCase {
 		$this->assertSame( array( 31, 32 ), ( new Backups() )->cleanup() );
 		$this->assertSame( 500, end( \WP_Query::$made )['posts_per_page'], 'The batch is capped.' );
 	}
+
+	public function test_undo_says_so_when_the_same_copy_is_back_already(): void {
+		list( $operations, $item ) = $this->setup_header();
+		$operations->reset( $item );
+		$backup = ( new Backups() )->get( 100 );
+
+		// An undo in an activity log put the same database copy back, with a new post ID.
+		$this->add_post( 55, Themes::TEMPLATE_PART, 'header', 'edited' );
+		\WP_Query::$queue[] = array( 'posts' => array( 55 ) );
+		$this->assertSame( Operations::RESTORED, $operations->undo_blocker( $backup ) );
+
+		\WP_Query::$queue[] = array( 'posts' => array( 55 ) );
+		Actions\expectDone( 'block_theme_ops_reset_undone' )->never();
+		$error = $operations->undo( 100 );
+		$this->assertSame( 'block_theme_ops_already_back', $error->get_error_code() );
+		$this->assertSame( 'This database copy is back already, for example through an undo in an activity log. There is nothing to undo.', $error->get_error_message() );
+		$this->assertArrayNotHasKey( 101, $this->inserted, 'nothing was inserted' );
+
+		// Customized again with other content is a different story.
+		$this->posts[55]->post_content = 'edited again';
+		\WP_Query::$queue[]            = array( 'posts' => array( 55 ) );
+		$this->assertSame( Operations::CUSTOMIZED, $operations->undo_blocker( $backup ) );
+
+		// Nothing there: undo can go ahead.
+		\WP_Query::$queue[] = array( 'posts' => array() );
+		$this->assertSame( '', $operations->undo_blocker( $backup ) );
+	}
+
+	public function test_the_undo_blocked_message_has_a_filter_with_a_safe_fallback(): void {
+		$backup = array( 'post_type' => Themes::TEMPLATE_PART );
+
+		Filters\expectApplied( 'block_theme_ops_undo_blocked_message' )->once()->with( \Mockery::type( 'string' ), Operations::CUSTOMIZED, $backup )->andReturn( 'Ask Maya first.' );
+		$this->assertSame( 'Ask Maya first.', Operations::blocked_message( Operations::CUSTOMIZED, $backup ) );
+
+		Filters\expectApplied( 'block_theme_ops_undo_blocked_message' )->once()->andReturn( array() );
+		$this->assertSame( 'Someone changed the global styles again since the reset. Reset them first, then undo.', Operations::blocked_message( Operations::CUSTOMIZED, array( 'post_type' => Themes::GLOBAL_STYLES ) ) );
+	}
+
+	public function test_global_styles_that_are_back_already_are_not_restored_twice(): void {
+		$styles = '{"styles":{"color":{"background":"#f4ecdf"}},"isGlobalStylesUserThemeJSON":true,"version":3}';
+		$this->add_post( 9, Themes::GLOBAL_STYLES, 'wp-global-styles-corner-bakery', $styles );
+		$operations = new Operations( new Drift( new Themes() ), new Backups(), new Snapshots( new Themes() ), new Alerts() );
+		$backup     = array(
+			'post_type'   => Themes::GLOBAL_STYLES,
+			'original_id' => 9,
+			'content'     => $styles,
+		);
+
+		$this->assertSame( Operations::RESTORED, $operations->undo_blocker( $backup ) );
+		$this->posts[9]->post_content = '{"styles":{"color":{"background":"#000000"}},"isGlobalStylesUserThemeJSON":true,"version":3}';
+		$this->assertSame( Operations::CUSTOMIZED, $operations->undo_blocker( $backup ) );
+		$this->posts[9]->post_content = '{"isGlobalStylesUserThemeJSON":true,"version":3}';
+		$this->assertSame( '', $operations->undo_blocker( $backup ), 'an empty layer is what a reset leaves' );
+	}
 }

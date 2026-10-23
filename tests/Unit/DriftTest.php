@@ -13,6 +13,7 @@ use AryanX\BlockThemeOps\Snapshots;
 use AryanX\BlockThemeOps\Themes;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
+use Brain\Monkey\Functions;
 
 final class DriftTest extends PluginTestCase {
 
@@ -195,5 +196,22 @@ final class DriftTest extends PluginTestCase {
 		unlink( $child . '/parts/footer.html' );
 		rmdir( $child . '/parts' );
 		rmdir( $child );
+	}
+
+	public function test_an_item_saved_without_a_user_shows_system_not_unknown(): void {
+		Functions\when( 'get_userdata' )->alias(
+			static function ( $id ) {
+				return 3 === $id ? (object) array( 'display_name' => 'Maya' ) : false;
+			}
+		);
+
+		$this->assertSame( 'Maya', Drift::user_name( 3 ) );
+		$this->assertSame( 'System', Drift::user_name( 0 ), 'WP-CLI, WP-Cron or another plugin\'s undo' );
+		$this->assertSame( 'Deleted user #8', Drift::user_name( 8 ) );
+
+		Filters\expectApplied( 'block_theme_ops_user_name' )->once()->with( 'System', 0 )->andReturn( 'WP-CLI' );
+		$this->assertSame( 'WP-CLI', Drift::user_name( 0 ) );
+		Filters\expectApplied( 'block_theme_ops_user_name' )->once()->andReturn( '' );
+		$this->assertSame( 'System', Drift::user_name( 0 ), 'an empty name falls back' );
 	}
 }

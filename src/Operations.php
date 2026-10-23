@@ -16,6 +16,16 @@ defined( 'ABSPATH' ) || exit;
 class Operations {
 
 	/**
+	 * Undo is blocked because the same database copy is back already.
+	 */
+	public const RESTORED = 'restored';
+
+	/**
+	 * Undo is blocked because the item was customized again since the reset.
+	 */
+	public const CUSTOMIZED = 'customized';
+
+	/**
 	 * Inventory.
 	 *
 	 * @var Drift
@@ -160,6 +170,11 @@ class Operations {
 			return new \WP_Error( 'block_theme_ops_expired', __( 'This reset is too old to undo.', 'block-theme-ops' ) );
 		}
 
+		$blocker = $this->undo_blocker( $backup );
+		if ( '' !== $blocker ) {
+			return new \WP_Error( self::RESTORED === $blocker ? 'block_theme_ops_already_back' : 'block_theme_ops_exists', self::blocked_message( $blocker, $backup ) );
+		}
+
 		$post_id = Themes::GLOBAL_STYLES === $backup['post_type'] ? $this->restore_styles( $backup ) : $this->restore_template( $backup );
 		if ( is_wp_error( $post_id ) ) {
 			return $post_id;
@@ -184,6 +199,62 @@ class Operations {
 		do_action( 'block_theme_ops_reset_undone', $backup, $post_id );
 
 		return $post_id;
+	}
+
+	/**
+	 * Why a reset cannot be undone right now.
+	 *
+	 * @param array $backup Backup.
+	 * @return string '' when it can, `restored` when the same database copy is back already (say an
+	 *                undo in an activity log recreated it), `customized` when someone customized the item again.
+	 */
+	public function undo_blocker( array $backup ): string {
+		if ( Themes::GLOBAL_STYLES === $backup['post_type'] ) {
+			$post = get_post( (int) $backup['original_id'] );
+			if ( ! $post instanceof \WP_Post || Themes::GLOBAL_STYLES !== $post->post_type ) {
+				return '';
+			}
+			$now = StylesJson::changes( StylesJson::decode( (string) $post->post_content ) );
+			if ( ! $now ) {
+				return '';
+			}
+
+			return StylesJson::changes( StylesJson::decode( (string) $backup['content'] ) ) == $now ? self::RESTORED : self::CUSTOMIZED; // phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual -- Same values, in any key order.
+		}
+
+		$existing = $this->existing_copy( $backup );
+		if ( ! $existing ) {
+			return '';
+		}
+		$post = get_post( $existing );
+
+		return $post instanceof \WP_Post && Markup::same( (string) $post->post_content, (string) $backup['content'] ) ? self::RESTORED : self::CUSTOMIZED;
+	}
+
+	/**
+	 * What to tell people when a reset cannot be undone.
+	 *
+	 * @param string $reason `restored` or `customized`, from undo_blocker().
+	 * @param array  $backup Backup.
+	 * @return string
+	 */
+	public static function blocked_message( string $reason, array $backup ): string {
+		if ( self::RESTORED === $reason ) {
+			$message = __( 'This database copy is back already, for example through an undo in an activity log. There is nothing to undo.', 'block-theme-ops' );
+		} elseif ( Themes::GLOBAL_STYLES === ( $backup['post_type'] ?? '' ) ) {
+			$message = __( 'Someone changed the global styles again since the reset. Reset them first, then undo.', 'block-theme-ops' );
+		} else {
+			$message = __( 'Someone customized this item again since the reset. Reset that copy first, then undo.', 'block-theme-ops' );
+		}
+
+		/**
+		 * Filters the message shown when a reset cannot be undone, on the Backups tab and from Undo.
+		 *
+		 * @param string $message Plain text.
+		 * @param string $reason  `restored` (the same copy is back already) or `customized` (customized again since the reset).
+		 * @param array  $backup  The backup.
+		 */
+		return Drift::text_or( apply_filters( 'block_theme_ops_undo_blocked_message', $message, $reason, $backup ), $message );
 	}
 
 	/**
@@ -228,29 +299,6 @@ class Operations {
 	 * @return int|\WP_Error
 	 */
 	private function restore_template( array $backup ) {
-		$existing = new \WP_Query(
-			array(
-				'post_type'              => $backup['post_type'],
-				'post_status'            => array( 'publish', 'draft', 'auto-draft' ),
-				'name'                   => $backup['slug'],
-				'posts_per_page'         => 1,
-				'fields'                 => 'ids',
-				'no_found_rows'          => true,
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Core keeps the theme of a template only in this taxonomy.
-				'tax_query'              => array(
-					array(
-						'taxonomy' => 'wp_theme',
-						'field'    => 'name',
-						'terms'    => $backup['theme'],
-					),
-				),
-				'update_post_term_cache' => false,
-			)
-		);
-		if ( $existing->posts ) {
-			return new \WP_Error( 'block_theme_ops_exists', __( 'Someone customized this item again since the reset. Reset that copy first, then undo.', 'block-theme-ops' ) );
-		}
-
 		$post_id = wp_insert_post(
 			wp_slash(
 				array(
@@ -287,6 +335,36 @@ class Operations {
 	}
 
 	/**
+	 * The database copy of a backed-up template or part, made since the reset.
+	 *
+	 * @param array $backup Backup.
+	 * @return int Post ID, or 0.
+	 */
+	private function existing_copy( array $backup ): int {
+		$existing = new \WP_Query(
+			array(
+				'post_type'              => $backup['post_type'],
+				'post_status'            => array( 'publish', 'draft', 'auto-draft' ),
+				'name'                   => $backup['slug'],
+				'posts_per_page'         => 1,
+				'fields'                 => 'ids',
+				'no_found_rows'          => true,
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Core keeps the theme of a template only in this taxonomy.
+				'tax_query'              => array(
+					array(
+						'taxonomy' => 'wp_theme',
+						'field'    => 'name',
+						'terms'    => $backup['theme'],
+					),
+				),
+				'update_post_term_cache' => false,
+			)
+		);
+
+		return $existing->posts ? (int) reset( $existing->posts ) : 0;
+	}
+
+	/**
 	 * Puts global styles changes back into the theme's global styles post.
 	 *
 	 * @param array $backup Backup.
@@ -295,9 +373,6 @@ class Operations {
 	private function restore_styles( array $backup ) {
 		$post = get_post( (int) $backup['original_id'] );
 		if ( $post instanceof \WP_Post && Themes::GLOBAL_STYLES === $post->post_type ) {
-			if ( StylesJson::changes( StylesJson::decode( (string) $post->post_content ) ) ) {
-				return new \WP_Error( 'block_theme_ops_exists', __( 'Someone changed the global styles again since the reset. Reset them first, then undo.', 'block-theme-ops' ) );
-			}
 			$done = wp_update_post(
 				wp_slash(
 					array(

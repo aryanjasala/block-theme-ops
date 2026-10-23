@@ -84,7 +84,8 @@
 .bto-type {
 	display: block;
 	margin-top: 2px;
-	color: #646970;
+	/* #50575e keeps 4.5:1 on the grey code chips in striped rows; #646970 did not. */
+	color: #50575e;
 	font-size: 12px;
 }
 
@@ -165,8 +166,9 @@
 
 .bto-facts th,
 .bto-facts td {
-	padding: 4px 16px 4px 0;
-	text-align: left;
+	padding-block: 4px;
+	padding-inline: 0 16px;
+	text-align: start;
 	vertical-align: top;
 }
 
@@ -266,6 +268,15 @@
 	background: #fff;
 	border: 1px solid #dcdcde;
 	white-space: pre-wrap;
+}
+
+.bto-blocked {
+	margin: 0;
+	color: #50575e;
+}
+
+.bto-pr-hint {
+	margin: -16px 0 24px;
 }
 
 .bto-token-status {
