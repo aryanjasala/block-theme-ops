@@ -3,7 +3,7 @@ const fs = require( 'fs' );
 const os = require( 'os' );
 const path = require( 'path' );
 const { test, expect, wp, wpEval } = require( './utils' );
-const { THEME, PAGE, installTheme, resetState, themeFile, editThemeFile, customize, customizeStyles, report, installMocks, githubLog } = require( './helpers' );
+const { THEME, PAGE, installTheme, resetState, themeFile, editThemeFile, customize, customizeStyles, report, installMocks, installRtl, githubLog } = require( './helpers' );
 
 const HEADER_EDIT = [ 'Fresh bread every morning.', 'Fresh bread and coffee every morning.' ];
 const HEADER_DEPLOY = [ '<!-- wp:site-title /-->', '<!-- wp:site-title /-->\n\n\t<!-- wp:navigation /-->' ];
@@ -318,6 +318,15 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( notice ).toContainText( '1 Site Editor change still overrides a newer theme file: Header (template part).' );
 		await expect( page.locator( '#menu-appearance .awaiting-mod' ) ).toHaveText( '1' );
 
+		// Only where themes are looked after, not on every other screen.
+		for ( const screen of [ '/wp-admin/edit.php', '/wp-admin/plugins.php', '/wp-admin/tools.php' ] ) {
+			await page.goto( screen );
+			await expect( page.locator( '#wpbody-content' ) ).toBeVisible();
+			await expect( page.locator( '.block-theme-ops-notice' ) ).toHaveCount( 0 );
+		}
+		await page.goto( '/wp-admin/update-core.php' );
+		await expect( page.locator( '.block-theme-ops-notice' ) ).toHaveCount( 1 );
+
 		await page.goto( '/wp-admin/site-health.php' );
 		await expect( page.locator( '#health-check-site-status-recommended' ) ).toContainText( '1 Site Editor change hides a newer theme file', { timeout: 30_000 } );
 
@@ -348,6 +357,145 @@ test.describe( 'Block Theme Ops', () => {
 		await page.locator( '.block-theme-ops-notice' ).getByRole( 'link', { name: 'Review in Theme Drift' } ).click();
 		await expect( page ).toHaveURL( /status=theme-changed/ );
 		await expect( row( page, 'Header' ) ).toBeVisible();
+	} );
+
+	test( 'on a right-to-left site, diffs and code still read left to right, and the columns are named', async ( { page, rest } ) => {
+		installRtl();
+		const id = await customize( rest, 'template-parts', 'header', editedHeader() );
+		editThemeFile( 'parts/header.html', ...HEADER_DEPLOY );
+		const landing = await rest( 'POST', '/wp/v2/templates', { slug: 'wp-custom-template-landing', title: 'Landing', content: '<!-- wp:paragraph --><p>Spring sale</p><!-- /wp:paragraph -->' } );
+
+		await page.goto( `${ PAGE }&item=${ id }` );
+		await expect( page.locator( 'html' ) ).toHaveAttribute( 'dir', 'rtl' );
+		for ( const diff of [ '#bto-diff-reset', '#bto-diff-theme', '#bto-diff-custom' ] ) {
+			await expect( page.locator( `${ diff } .bto-diff__table` ) ).toHaveAttribute( 'dir', 'ltr' );
+			expect( await page.locator( `${ diff } table.diff` ).evaluate( ( node ) => getComputedStyle( node ).direction ) ).toBe( 'ltr' );
+		}
+		await expect( page.locator( '#bto-diff-reset' ) ).toContainText( 'Reset throws the database copy away.' );
+		await expect( page.locator( '.bto-facts code' ) ).toHaveAttribute( 'dir', 'ltr' );
+		// The way back points the way the language reads.
+		await expect( page.locator( '.bto-back a' ) ).toHaveText( '→ Theme Drift' );
+
+		await page.goto( `${ PAGE }&item=${ landing.body.wp_id }` );
+		await expect( page.locator( 'pre.bto-code' ) ).toHaveAttribute( 'dir', 'ltr' );
+		expect( await page.locator( 'pre.bto-code' ).evaluate( ( node ) => getComputedStyle( node ).direction ) ).toBe( 'ltr' );
+	} );
+
+	test( 'the tabs have a name, and the slug chips are readable', async ( { page, rest } ) => {
+		await customize( rest, 'template-parts', 'header', editedHeader() );
+		await customize( rest, 'template-parts', 'footer', themeFile( 'parts/footer.html' ).replace( 'Open Tuesday to Sunday', 'Open every day' ) );
+		await customize( rest, 'templates', 'single', themeFile( 'templates/single.html' ).replace( '</main>', '<!-- wp:paragraph --><p>Thanks for reading.</p><!-- /wp:paragraph --></main>' ) );
+
+		await page.goto( PAGE );
+		await expect( page.getByRole( 'navigation', { name: 'Theme Drift sections' } ) ).toBeVisible();
+
+		// WCAG AA: 4.5:1 for the small code chips, on white and on the grey striped rows.
+		const ratios = await page.locator( '.bto-type code' ).evaluateAll( ( nodes ) => {
+			const parse = ( value ) => ( value.match( /[\d.]+/g ) || [] ).map( Number );
+			const over = ( top, bottom ) => {
+				const alpha = top.length > 3 ? top[ 3 ] : 1;
+				return [ 0, 1, 2 ].map( ( i ) => top[ i ] * alpha + bottom[ i ] * ( 1 - alpha ) );
+			};
+			const background = ( node ) => {
+				const layers = [];
+				for ( let el = node; el; el = el.parentElement ) {
+					const color = parse( getComputedStyle( el ).backgroundColor );
+					if ( color.length && ( color.length < 4 || color[ 3 ] > 0 ) ) {
+						layers.push( color );
+						if ( color.length < 4 || color[ 3 ] === 1 ) {
+							break;
+						}
+					}
+				}
+				return layers.reverse().reduce( ( below, layer ) => over( layer, below ), [ 255, 255, 255 ] );
+			};
+			const luminance = ( rgb ) => {
+				const [ r, g, b ] = rgb.map( ( v ) => {
+					v /= 255;
+					return v <= 0.03928 ? v / 12.92 : Math.pow( ( v + 0.055 ) / 1.055, 2.4 );
+				} );
+				return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+			};
+			return nodes.map( ( node ) => {
+				const back = background( node );
+				const a = luminance( over( parse( getComputedStyle( node ).color ), back ) );
+				const b = luminance( back );
+				return ( Math.max( a, b ) + 0.05 ) / ( Math.min( a, b ) + 0.05 );
+			} );
+		} );
+		expect( ratios ).toHaveLength( 3 );
+		for ( const ratio of ratios ) {
+			expect( ratio ).toBeGreaterThanOrEqual( 4.5 );
+		}
+	} );
+
+	test( 'Open pull request waits until GitHub is set up, and says where', async ( { page, rest } ) => {
+		const id = await customize( rest, 'template-parts', 'header', editedHeader() );
+
+		await page.goto( `${ PAGE }&item=${ id }` );
+		await expect( page.getByRole( 'button', { name: 'Open pull request' } ) ).toBeDisabled();
+		const hint = page.locator( '#bto-pr-hint' );
+		await expect( hint ).toContainText( 'Pull requests need a repository and a token.' );
+		await expect( hint.getByRole( 'link', { name: 'Settings' } ) ).toHaveAttribute( 'href', /tab=settings/ );
+		await expect( page.getByRole( 'button', { name: 'Open pull request' } ) ).toHaveAttribute( 'aria-describedby', 'bto-pr-hint' );
+
+		await page.goto( PAGE );
+		await expect( page.locator( '#bto-bulk-action option[value="pr"]' ) ).toBeDisabled();
+
+		// Sent anyway, say from an old tab: the error links to the settings.
+		await row( page, 'Header' ).locator( 'input[type="checkbox"]' ).check();
+		await page.locator( '#bto-bulk-action option[value="pr"]' ).evaluate( ( option ) => ( option.disabled = false ) );
+		await page.locator( '#bto-bulk-action' ).selectOption( 'pr' );
+		page.once( 'dialog', ( dialog ) => dialog.accept() );
+		await page.getByRole( 'button', { name: 'Apply' } ).click();
+		await expect( page.locator( '.notice-error.bto-notice' ) ).toContainText( 'Set the repository and a token' );
+		await page.locator( '.bto-notice' ).getByRole( 'link', { name: 'Open the GitHub settings' } ).click();
+		await expect( page.locator( '#bto-repo' ) ).toBeVisible();
+
+		// Once set up, the button works again.
+		wpEval( "update_option( 'block_theme_ops_settings', array( 'repo' => 'acme/corner-bakery-site', 'branch' => 'main', 'path' => '', 'token' => 'test-token', 'notify' => false ) );" );
+		await page.goto( `${ PAGE }&item=${ id }` );
+		await expect( page.getByRole( 'button', { name: 'Open pull request' } ) ).toBeEnabled();
+		await expect( page.locator( '#bto-pr-hint' ) ).toHaveCount( 0 );
+	} );
+
+	test( 'Backups says up front when an item is back already or customized again', async ( { page, rest } ) => {
+		await customize( rest, 'template-parts', 'header', editedHeader() );
+		wp( 'block-theme-ops', 'reset', 'parts/header', '--yes' );
+		const backup = JSON.parse( wp( 'block-theme-ops', 'backups', '--format=json' ) )[ 0 ].id;
+
+		await page.goto( `${ PAGE }&tab=backups` );
+		await expect( page.locator( '.bto-backups' ).getByRole( 'button', { name: 'Undo reset' } ) ).toBeVisible();
+
+		// An undo in an activity log puts the same customization back.
+		await customize( rest, 'template-parts', 'header', editedHeader() );
+		await page.goto( `${ PAGE }&tab=backups` );
+		const blocked = page.locator( `.bto-backup[data-id="${ backup }"] .bto-blocked` );
+		await expect( blocked ).toHaveAttribute( 'data-reason', 'restored' );
+		await expect( blocked ).toContainText( 'Back already' );
+		await expect( blocked ).toContainText( 'This database copy is back already, for example through an undo in an activity log. There is nothing to undo.' );
+		await expect( page.locator( '.bto-backups' ).getByRole( 'button', { name: 'Undo reset' } ) ).toHaveCount( 0 );
+		expect( () => wp( 'block-theme-ops', 'undo', String( backup ) ) ).toThrow( /back already/ );
+
+		// Someone changes it again: that is a different message.
+		await customize( rest, 'template-parts', 'header', editedHeader().replace( 'and coffee', 'and cake' ) );
+		await page.goto( `${ PAGE }&tab=backups` );
+		await expect( blocked ).toHaveAttribute( 'data-reason', 'customized' );
+		await expect( blocked ).toContainText( 'Customized again since' );
+		await expect( blocked ).toContainText( 'Someone customized this item again since the reset.' );
+		expect( wp( 'post', 'list', '--post_type=wp_template_part', '--format=count' ) ).toBe( '1' );
+	} );
+
+	test( 'an item recreated with no user logged in shows System, not Unknown', async ( { page } ) => {
+		// What an undo from WP-CLI or another plugin leaves: a footer part with no author and no editor recorded.
+		const id = Number(
+			wpEval( `$id = wp_insert_post( array( 'post_type' => 'wp_template_part', 'post_name' => 'footer', 'post_title' => 'Footer', 'post_status' => 'publish', 'post_author' => 0, 'post_content' => '<!-- wp:paragraph --><p>Open every day.</p><!-- /wp:paragraph -->' ) ); wp_set_object_terms( $id, '${ THEME }', 'wp_theme' ); wp_set_object_terms( $id, 'footer', 'wp_template_part_area' ); echo $id;` )
+		);
+		expect( report()[ 'parts/footer' ] ).toMatchObject( { id, author: 'System' } );
+
+		await page.goto( PAGE );
+		await expect( row( page, 'Footer' ) ).toContainText( 'by System' );
+		await expect( row( page, 'Footer' ) ).not.toContainText( 'Unknown' );
 	} );
 
 	test( 'a customization from before the plugin was active is probably theme-changed when the file is newer', async ( { page, rest } ) => {

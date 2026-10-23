@@ -47,6 +47,7 @@ function resetState() {
 		wp_clear_scheduled_hook( 'block_theme_ops_check' );
 		@unlink( WP_CONTENT_DIR . '/bto-github-mock.json' );
 		@unlink( WP_CONTENT_DIR . '/mu-plugins/bto-e2e.php' );
+		@unlink( WP_CONTENT_DIR . '/mu-plugins/bto-e2e-rtl.php' );
 	` );
 }
 
@@ -148,6 +149,14 @@ add_filter( 'pre_wp_mail', function ( $short, $atts ) {
 }
 
 /**
+ * Turns wp-admin right to left, as a Hebrew or Arabic site has it, without a language pack.
+ */
+function installRtl() {
+	const php = "<?php\nadd_action( 'init', function () { $GLOBALS['wp_locale']->text_direction = 'rtl'; } );\n";
+	wpEval( `wp_mkdir_p( WPMU_PLUGIN_DIR ); file_put_contents( WPMU_PLUGIN_DIR . '/bto-e2e-rtl.php', base64_decode( '${ Buffer.from( php ).toString( 'base64' ) }' ) );` );
+}
+
+/**
  * Requests the GitHub mock received, oldest first.
  *
  * @return {Object[]} method, path, auth and body of each.
@@ -186,4 +195,4 @@ function unseedDemo() {
 	wp( 'user', 'update', 'admin', '--display_name=admin' );
 }
 
-module.exports = { THEME, PAGE, installTheme, resetState, themeFile, writeThemeFile, editThemeFile, customize, customizeStyles, report, installMocks, githubLog, seedDemo, unseedDemo };
+module.exports = { THEME, PAGE, installTheme, resetState, themeFile, writeThemeFile, editThemeFile, customize, customizeStyles, report, installMocks, installRtl, githubLog, seedDemo, unseedDemo };
