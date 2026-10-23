@@ -205,7 +205,7 @@ final class DriftPage implements Service {
 			'settings' => __( 'Settings', 'block-theme-ops' ),
 		);
 
-		echo '<nav class="nav-tab-wrapper bto-tabs">';
+		echo '<nav class="nav-tab-wrapper bto-tabs" aria-label="' . esc_attr__( 'Theme Drift sections', 'block-theme-ops' ) . '">';
 		foreach ( $tabs as $tab => $label ) {
 			printf(
 				'<a href="%s" class="nav-tab%s"%s>%s</a>',
@@ -304,7 +304,11 @@ final class DriftPage implements Service {
 							<option value="keep"><?php esc_html_e( 'Keep', 'block-theme-ops' ); ?></option>
 						<?php endif; ?>
 						<option value="export"><?php esc_html_e( 'Download zip', 'block-theme-ops' ); ?></option>
-						<option value="pr"><?php esc_html_e( 'Open pull request', 'block-theme-ops' ); ?></option>
+						<?php if ( $this->exporter->provider()->is_configured() ) : ?>
+							<option value="pr"><?php esc_html_e( 'Open pull request', 'block-theme-ops' ); ?></option>
+						<?php else : ?>
+							<option value="pr" disabled><?php esc_html_e( 'Open pull request (set up GitHub under Settings first)', 'block-theme-ops' ); ?></option>
+						<?php endif; ?>
 					</select>
 					<button type="submit" class="button action"><?php esc_html_e( 'Apply', 'block-theme-ops' ); ?></button>
 				</div>
@@ -339,7 +343,7 @@ final class DriftPage implements Service {
 							</th>
 							<td class="column-primary">
 								<strong><a class="row-title" href="<?php echo esc_url( self::url( array( 'item' => $item['id'] ) ) ); ?>"><?php echo esc_html( $item['title'] ); ?></a></strong>
-								<span class="bto-type"><?php echo esc_html( $item['type_label'] ); ?> &middot; <code><?php echo esc_html( $item['key'] ); ?></code></span>
+								<span class="bto-type"><?php echo esc_html( $item['type_label'] ); ?> &middot; <code dir="ltr"><?php echo esc_html( $item['key'] ); ?></code></span>
 								<div class="row-actions">
 									<span><a href="<?php echo esc_url( self::url( array( 'item' => $item['id'] ) ) ); ?>"><?php esc_html_e( 'View changes', 'block-theme-ops' ); ?></a> | </span>
 									<?php if ( '' !== $item['file'] ) : ?>
@@ -380,7 +384,7 @@ final class DriftPage implements Service {
 	private function render_item( int $id ): void {
 		$item = $this->drift->get( $id );
 
-		echo '<p class="bto-back"><a href="' . esc_url( self::url() ) . '">&larr; ' . esc_html__( 'Theme Drift', 'block-theme-ops' ) . '</a></p>';
+		echo '<p class="bto-back"><a href="' . esc_url( self::url() ) . '">' . esc_html( self::back_arrow() ) . ' ' . esc_html__( 'Theme Drift', 'block-theme-ops' ) . '</a></p>';
 		if ( null === $item ) {
 			echo '<h1>' . esc_html__( 'Theme Drift', 'block-theme-ops' ) . '</h1>';
 			$this->render_notice();
@@ -460,16 +464,23 @@ final class DriftPage implements Service {
 			</form>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form" <?php $this->confirm_attributes(); ?>>
 				<?php $this->hidden( 'pr', (int) $item['id'] ); ?>
-				<button type="submit" class="button"><?php esc_html_e( 'Open pull request', 'block-theme-ops' ); ?></button>
+				<?php if ( $this->exporter->provider()->is_configured() ) : ?>
+					<button type="submit" class="button"><?php esc_html_e( 'Open pull request', 'block-theme-ops' ); ?></button>
+				<?php else : ?>
+					<button type="submit" class="button" disabled aria-describedby="bto-pr-hint"><?php esc_html_e( 'Open pull request', 'block-theme-ops' ); ?></button>
+				<?php endif; ?>
 			</form>
 		</div>
+		<?php if ( ! $this->exporter->provider()->is_configured() ) : ?>
+			<p class="description bto-pr-hint" id="bto-pr-hint"><?php $this->settings_hint(); ?></p>
+		<?php endif; ?>
 
 		<?php
 		if ( null !== $views['file'] ) {
 			$this->diff(
 				'bto-diff-reset',
 				__( 'Database copy compared with the theme file now', 'block-theme-ops' ),
-				__( 'What the site shows instead of the theme file. Reset throws the right side away.', 'block-theme-ops' ),
+				__( 'What the site shows instead of the theme file. Reset throws the database copy away.', 'block-theme-ops' ),
 				$views['file'],
 				$views['database'],
 				__( 'Theme file now', 'block-theme-ops' ),
@@ -477,7 +488,7 @@ final class DriftPage implements Service {
 			);
 		} else {
 			echo '<h2>' . esc_html__( 'Database copy', 'block-theme-ops' ) . '</h2>';
-			echo '<pre class="bto-code">' . esc_html( $views['database'] ) . '</pre>';
+			echo '<pre class="bto-code" dir="ltr">' . esc_html( $views['database'] ) . '</pre>';
 		}
 
 		if ( null !== $views['snapshot'] && null !== $views['file'] ) {
@@ -532,7 +543,8 @@ final class DriftPage implements Service {
 			<?php if ( '' === $diff ) : ?>
 				<p class="bto-same"><?php esc_html_e( 'No differences.', 'block-theme-ops' ); ?></p>
 			<?php else : ?>
-				<div class="bto-diff__table"><?php echo wp_kses_post( $diff ); ?></div>
+				<?php // Block markup and JSON read left to right, in every language. ?>
+				<div class="bto-diff__table" dir="ltr"><?php echo wp_kses_post( $diff ); ?></div>
 			<?php endif; ?>
 		</section>
 		<?php
@@ -568,7 +580,7 @@ final class DriftPage implements Service {
 					<tr class="bto-backup" data-id="<?php echo esc_attr( (string) $backup['id'] ); ?>">
 						<td class="column-primary">
 							<strong><?php echo esc_html( (string) ( $backup['item']['title'] ?? $backup['title'] ) ); ?></strong>
-							<span class="bto-type"><?php echo esc_html( Drift::type_label( (string) $backup['post_type'] ) ); ?> &middot; <code><?php echo esc_html( (string) ( $backup['item']['key'] ?? $backup['slug'] ) ); ?></code></span>
+							<span class="bto-type"><?php echo esc_html( Drift::type_label( (string) $backup['post_type'] ) ); ?> &middot; <code dir="ltr"><?php echo esc_html( (string) ( $backup['item']['key'] ?? $backup['slug'] ) ); ?></code></span>
 						</td>
 						<td><?php echo esc_html( (string) $backup['theme'] ); ?></td>
 						<td>
@@ -579,10 +591,18 @@ final class DriftPage implements Service {
 						</td>
 						<td><?php echo esc_html( self::date( (int) $backup['undo_until'] ) ); ?></td>
 						<td>
-							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form">
-								<?php $this->hidden( 'undo', (int) $backup['id'], array( 'tab' => 'backups' ) ); ?>
-								<button type="submit" class="button"><?php esc_html_e( 'Undo reset', 'block-theme-ops' ); ?></button>
-							</form>
+							<?php $blocker = $this->operations->undo_blocker( $backup ); ?>
+							<?php if ( '' === $blocker ) : ?>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form">
+									<?php $this->hidden( 'undo', (int) $backup['id'], array( 'tab' => 'backups' ) ); ?>
+									<button type="submit" class="button"><?php esc_html_e( 'Undo reset', 'block-theme-ops' ); ?></button>
+								</form>
+							<?php else : ?>
+								<p class="bto-blocked" data-reason="<?php echo esc_attr( $blocker ); ?>">
+									<strong><?php echo esc_html( Operations::RESTORED === $blocker ? __( 'Back already', 'block-theme-ops' ) : __( 'Customized again since', 'block-theme-ops' ) ); ?></strong><br>
+									<?php echo esc_html( Operations::blocked_message( $blocker, $backup ) ); ?>
+								</p>
+							<?php endif; ?>
 						</td>
 					</tr>
 				<?php endforeach; ?>
@@ -754,7 +774,12 @@ final class DriftPage implements Service {
 		if ( 'pr' === $task ) {
 			$result = $this->exporter->pull_request( $items, 'pr' );
 			if ( is_wp_error( $result ) ) {
-				$this->done( 'error', $result->get_error_message(), $back );
+				$this->done(
+					'error',
+					$result->get_error_message(),
+					$back,
+					'block_theme_ops_not_configured' === $result->get_error_code() ? array( 'settings' => 1 ) : array()
+				);
 				return;
 			}
 			$this->done(
@@ -915,7 +940,7 @@ final class DriftPage implements Service {
 	 * @param string $type    success or error.
 	 * @param string $message Message.
 	 * @param array  $back    Query arguments of the screen to go back to.
-	 * @param array  $extra   undo (backup ID) or url (pull request).
+	 * @param array  $extra   undo (backup ID), url (pull request) or settings (link to the Settings tab).
 	 */
 	private function done( string $type, string $message, array $back, array $extra = array() ): void {
 		set_transient(
@@ -948,6 +973,9 @@ final class DriftPage implements Service {
 				<?php echo esc_html( (string) $notice['message'] ); ?>
 				<?php if ( ! empty( $notice['url'] ) ) : ?>
 					<a href="<?php echo esc_url( (string) $notice['url'] ); ?>" class="bto-pr-link" target="_blank" rel="noopener noreferrer"><?php echo esc_html( (string) $notice['url'] ); ?></a>
+				<?php endif; ?>
+				<?php if ( ! empty( $notice['settings'] ) ) : ?>
+					<a href="<?php echo esc_url( self::url( array( 'tab' => 'settings' ) ) ); ?>" class="bto-settings-link"><?php esc_html_e( 'Open the GitHub settings', 'block-theme-ops' ); ?></a>
 				<?php endif; ?>
 			</p>
 			<?php if ( ! empty( $notice['undo'] ) ) : ?>
@@ -1037,11 +1065,31 @@ final class DriftPage implements Service {
 			return;
 		}
 
-		echo '<code>' . esc_html( $item['file'] ) . '</code>';
+		echo '<code dir="ltr">' . esc_html( $item['file'] ) . '</code>';
 		if ( $item['file_theme'] !== $item['theme'] ) {
 			/* translators: %s: parent theme folder name. */
 			echo '<br><span class="bto-muted">' . esc_html( sprintf( __( 'in the parent theme, %s', 'block-theme-ops' ), $item['file_theme'] ) ) . '</span>';
 		}
+	}
+
+	/**
+	 * The arrow of the link back to the list, pointing the way the language reads.
+	 *
+	 * @return string
+	 */
+	public static function back_arrow(): string {
+		return is_rtl() ? "\u{2192}" : "\u{2190}";
+	}
+
+	/**
+	 * Prints why pull requests are off, with a link to the Settings tab.
+	 */
+	private function settings_hint(): void {
+		printf(
+			/* translators: %s: link to the Settings tab. */
+			esc_html__( 'Pull requests need a repository and a token. Set them up under %s first.', 'block-theme-ops' ),
+			'<a href="' . esc_url( self::url( array( 'tab' => 'settings' ) ) ) . '">' . esc_html__( 'Settings', 'block-theme-ops' ) . '</a>'
+		);
 	}
 
 	/**
