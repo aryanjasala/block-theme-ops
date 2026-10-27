@@ -2,10 +2,10 @@
 /**
  * Items a check found drifting, waiting for someone to look at them.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
 defined( 'ABSPATH' ) || exit;
 

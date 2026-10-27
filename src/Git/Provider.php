@@ -2,10 +2,10 @@
 /**
  * Contract for Git hosts that take pull requests.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Git;
+namespace AryanX\Axle\BlockThemeOps\Git;
 
 defined( 'ABSPATH' ) || exit;
 

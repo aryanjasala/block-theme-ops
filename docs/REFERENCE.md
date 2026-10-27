@@ -73,7 +73,7 @@ The token comes from, in order: the `BLOCK_THEME_OPS_GITHUB_TOKEN` constant, an 
 | `block_theme_ops_pr_title` | filter | `( string $title, array[] $items )`. Pull request title and commit message |
 | `block_theme_ops_pr_body` | filter | `( string $body, array[] $items, array $files )`. Pull request description, in Markdown |
 | `block_theme_ops_branch_name` | filter | `( string $branch, array[] $items )`. The new branch. Names Git would refuse fall back to the default |
-| `block_theme_ops_git_provider` | filter | `( Provider $provider, Settings $settings )`. Another Git host. Return an `AryanX\BlockThemeOps\Git\Provider` |
+| `block_theme_ops_git_provider` | filter | `( Provider $provider, Settings $settings )`. Another Git host. Return an `AryanX\Axle\BlockThemeOps\Git\Provider` |
 | `block_theme_ops_drift_detected` | action | `( array[] $items, string $context )`. A check found items newly `theme-changed`. `$context` is `upgrade`, `cron` or `cli` |
 | `block_theme_ops_checked` | action | `( array[] $items, string $context )`. After every check, with every item |
 | `block_theme_ops_snapshot_saved` | action | `( int $post_id, array $snapshot )`. A snapshot of a theme file was stored |
@@ -154,7 +154,7 @@ wp block-theme-ops check || echo "Site Editor changes hide the new theme files"
 ## PHP API
 
 ```php
-$plugin = AryanX\BlockThemeOps\Plugin::instance();
+$plugin = AryanX\Axle\BlockThemeOps\Plugin::instance();
 
 $plugin->drift()->items( array( 'status' => 'theme-changed', 'kept' => false ) );
 $item = $plugin->drift()->get( 'parts/header' );

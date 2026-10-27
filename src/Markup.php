@@ -2,10 +2,10 @@
 /**
  * Block markup helpers: compare, pretty-print and clean template markup.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
 defined( 'ABSPATH' ) || exit;
 

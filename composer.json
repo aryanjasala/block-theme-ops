@@ -25,12 +25,12 @@
   },
   "autoload": {
     "psr-4": {
-      "AryanX\\BlockThemeOps\\": "src/"
+      "AryanX\\Axle\\BlockThemeOps\\": "src/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "AryanX\\BlockThemeOps\\Tests\\": "tests/"
+      "AryanX\\Axle\\BlockThemeOps\\Tests\\": "tests/"
     }
   },
   "config": {

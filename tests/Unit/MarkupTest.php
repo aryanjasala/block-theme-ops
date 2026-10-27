@@ -2,12 +2,12 @@
 /**
  * Tests for comparing, pretty-printing and cleaning block markup.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
-use AryanX\BlockThemeOps\Markup;
+use AryanX\Axle\BlockThemeOps\Markup;
 
 final class MarkupTest extends TestCase {
 

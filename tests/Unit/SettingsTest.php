@@ -2,12 +2,12 @@
 /**
  * Tests for settings and the GitHub token.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
-use AryanX\BlockThemeOps\Settings;
+use AryanX\Axle\BlockThemeOps\Settings;
 
 final class SettingsTest extends TestCase {
 

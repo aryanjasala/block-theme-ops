@@ -2,21 +2,21 @@
 /**
  * Appearance > Theme Drift.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Admin;
+namespace AryanX\Axle\BlockThemeOps\Admin;
 
-use AryanX\BlockThemeOps\Alerts;
-use AryanX\BlockThemeOps\Backups;
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Exporter;
-use AryanX\BlockThemeOps\Operations;
-use AryanX\BlockThemeOps\Service;
-use AryanX\BlockThemeOps\Settings;
-use AryanX\BlockThemeOps\Themes;
-use const AryanX\BlockThemeOps\PLUGIN_FILE;
-use const AryanX\BlockThemeOps\VERSION;
+use AryanX\Axle\BlockThemeOps\Alerts;
+use AryanX\Axle\BlockThemeOps\Backups;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Exporter;
+use AryanX\Axle\BlockThemeOps\Operations;
+use AryanX\Axle\BlockThemeOps\Service;
+use AryanX\Axle\BlockThemeOps\Settings;
+use AryanX\Axle\BlockThemeOps\Themes;
+use const AryanX\Axle\BlockThemeOps\PLUGIN_FILE;
+use const AryanX\Axle\BlockThemeOps\VERSION;
 
 defined( 'ABSPATH' ) || exit;
 

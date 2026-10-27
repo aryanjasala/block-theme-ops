@@ -2,10 +2,10 @@
 /**
  * Global styles helpers: the user layer on top of theme.json.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
 defined( 'ABSPATH' ) || exit;
 

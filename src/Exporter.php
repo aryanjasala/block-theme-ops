@@ -2,13 +2,13 @@
 /**
  * Export of database items as theme files: a zip or a pull request.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
-use AryanX\BlockThemeOps\Git\GitHub;
-use AryanX\BlockThemeOps\Git\Provider;
+use AryanX\Axle\BlockThemeOps\Git\GitHub;
+use AryanX\Axle\BlockThemeOps\Git\Provider;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -175,7 +175,7 @@ class Exporter {
 
 		/**
 		 * Filters the Git host that receives pull requests. Return another
-		 * implementation of AryanX\BlockThemeOps\Git\Provider, say for GitLab.
+		 * implementation of AryanX\Axle\BlockThemeOps\Git\Provider, say for GitLab.
 		 *
 		 * @param Provider $provider Default GitHub.
 		 * @param Settings $settings Saved settings.

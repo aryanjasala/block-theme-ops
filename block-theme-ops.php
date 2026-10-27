@@ -12,17 +12,17 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       block-theme-ops
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
 defined( 'ABSPATH' ) || exit;
 
 const VERSION     = '1.0.0';
 const PLUGIN_FILE = __FILE__;
 
-// PSR-4: AryanX\BlockThemeOps\Foo\Bar lives in src/Foo/Bar.php.
+// PSR-4: AryanX\Axle\BlockThemeOps\Foo\Bar lives in src/Foo/Bar.php.
 spl_autoload_register(
 	static function ( $class_name ) {
 		$prefix = __NAMESPACE__ . '\\';

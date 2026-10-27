@@ -2,12 +2,12 @@
 /**
  * Abilities: the drift report, diffs, reset and export for AI agents and other Abilities API clients.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
-use AryanX\BlockThemeOps\Admin\DriftPage;
+use AryanX\Axle\BlockThemeOps\Admin\DriftPage;
 
 defined( 'ABSPATH' ) || exit;
 

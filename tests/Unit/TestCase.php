@@ -2,10 +2,10 @@
 /**
  * Base class for unit tests.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;

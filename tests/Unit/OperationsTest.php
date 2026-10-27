@@ -2,17 +2,17 @@
 /**
  * Tests for reset, undo, keep and backups.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
-use AryanX\BlockThemeOps\Alerts;
-use AryanX\BlockThemeOps\Backups;
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Operations;
-use AryanX\BlockThemeOps\Snapshots;
-use AryanX\BlockThemeOps\Themes;
+use AryanX\Axle\BlockThemeOps\Alerts;
+use AryanX\Axle\BlockThemeOps\Backups;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Operations;
+use AryanX\Axle\BlockThemeOps\Snapshots;
+use AryanX\Axle\BlockThemeOps\Themes;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;

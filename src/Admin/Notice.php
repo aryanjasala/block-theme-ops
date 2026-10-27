@@ -2,14 +2,14 @@
 /**
  * Admin notice after a theme update leaves customizations behind.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Admin;
+namespace AryanX\Axle\BlockThemeOps\Admin;
 
-use AryanX\BlockThemeOps\Alerts;
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Service;
+use AryanX\Axle\BlockThemeOps\Alerts;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Service;
 
 defined( 'ABSPATH' ) || exit;
 

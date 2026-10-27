@@ -3,16 +3,16 @@
  * Base class for Block Theme Ops unit tests: a real copy of the fixture
  * theme on disk, and posts, terms and post meta kept in memory.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
 use Brain\Monkey\Functions;
 
 // Set by the main plugin file, which unit tests do not load.
-defined( 'AryanX\BlockThemeOps\VERSION' ) || define( 'AryanX\BlockThemeOps\VERSION', '1.0.0' );
-defined( 'AryanX\BlockThemeOps\PLUGIN_FILE' ) || define( 'AryanX\BlockThemeOps\PLUGIN_FILE', dirname( __DIR__, 2 ) . '/block-theme-ops.php' );
+defined( 'AryanX\Axle\BlockThemeOps\VERSION' ) || define( 'AryanX\Axle\BlockThemeOps\VERSION', '1.0.0' );
+defined( 'AryanX\Axle\BlockThemeOps\PLUGIN_FILE' ) || define( 'AryanX\Axle\BlockThemeOps\PLUGIN_FILE', dirname( __DIR__, 2 ) . '/block-theme-ops.php' );
 
 /**
  * A WP_Post with every field the plugin reads declared, so PHP 8.2+ does not

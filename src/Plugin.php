@@ -2,15 +2,15 @@
 /**
  * Plugin bootstrap.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
-use AryanX\BlockThemeOps\Admin\DriftPage;
-use AryanX\BlockThemeOps\Admin\Notice;
-use AryanX\BlockThemeOps\Cli\Command;
-use AryanX\BlockThemeOps\Health\SiteHealth;
+use AryanX\Axle\BlockThemeOps\Admin\DriftPage;
+use AryanX\Axle\BlockThemeOps\Admin\Notice;
+use AryanX\Axle\BlockThemeOps\Cli\Command;
+use AryanX\Axle\BlockThemeOps\Health\SiteHealth;
 
 defined( 'ABSPATH' ) || exit;
 

@@ -3,7 +3,7 @@
  * Constants PHPStan needs to know about. Each one is optional and set in
  * wp-config.php, so the code only reads it behind defined().
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
 defined( 'BLOCK_THEME_OPS_GITHUB_TOKEN' ) || define( 'BLOCK_THEME_OPS_GITHUB_TOKEN', '' );

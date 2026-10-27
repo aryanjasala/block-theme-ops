@@ -2,10 +2,10 @@
 /**
  * Reset, undo and keep.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps;
+namespace AryanX\Axle\BlockThemeOps;
 
 defined( 'ABSPATH' ) || exit;
 
