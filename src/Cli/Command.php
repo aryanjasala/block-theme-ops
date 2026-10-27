@@ -2,18 +2,18 @@
 /**
  * `wp block-theme-ops` commands.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Cli;
+namespace AryanX\Axle\BlockThemeOps\Cli;
 
-use AryanX\BlockThemeOps\Abilities;
-use AryanX\BlockThemeOps\Backups;
-use AryanX\BlockThemeOps\Checker;
-use AryanX\BlockThemeOps\Diff;
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Exporter;
-use AryanX\BlockThemeOps\Operations;
+use AryanX\Axle\BlockThemeOps\Abilities;
+use AryanX\Axle\BlockThemeOps\Backups;
+use AryanX\Axle\BlockThemeOps\Checker;
+use AryanX\Axle\BlockThemeOps\Diff;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Exporter;
+use AryanX\Axle\BlockThemeOps\Operations;
 
 defined( 'ABSPATH' ) || exit;
 

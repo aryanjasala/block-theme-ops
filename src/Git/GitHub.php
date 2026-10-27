@@ -2,15 +2,15 @@
 /**
  * Pull requests on GitHub.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Git;
+namespace AryanX\Axle\BlockThemeOps\Git;
 
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Settings;
-use AryanX\BlockThemeOps\Themes;
-use const AryanX\BlockThemeOps\VERSION;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Settings;
+use AryanX\Axle\BlockThemeOps\Themes;
+use const AryanX\Axle\BlockThemeOps\VERSION;
 
 defined( 'ABSPATH' ) || exit;
 

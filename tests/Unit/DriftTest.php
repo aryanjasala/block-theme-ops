@@ -2,15 +2,15 @@
 /**
  * Tests for the inventory and the drift status of each item.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Markup;
-use AryanX\BlockThemeOps\Snapshots;
-use AryanX\BlockThemeOps\Themes;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Markup;
+use AryanX\Axle\BlockThemeOps\Snapshots;
+use AryanX\Axle\BlockThemeOps\Themes;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;

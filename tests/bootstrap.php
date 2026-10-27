@@ -4,7 +4,7 @@
  * classes the plugin touches. WordPress functions are mocked per test with
  * Brain Monkey, so WordPress itself is not loaded.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
 require dirname( __DIR__ ) . '/vendor/autoload.php';

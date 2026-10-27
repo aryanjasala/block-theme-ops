@@ -2,17 +2,17 @@
 /**
  * Tests for exporting items as theme files and opening pull requests.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Exporter;
-use AryanX\BlockThemeOps\Git\GitHub;
-use AryanX\BlockThemeOps\Git\Provider;
-use AryanX\BlockThemeOps\Settings;
-use AryanX\BlockThemeOps\Themes;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Exporter;
+use AryanX\Axle\BlockThemeOps\Git\GitHub;
+use AryanX\Axle\BlockThemeOps\Git\Provider;
+use AryanX\Axle\BlockThemeOps\Settings;
+use AryanX\Axle\BlockThemeOps\Themes;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;

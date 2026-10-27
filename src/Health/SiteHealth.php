@@ -2,14 +2,14 @@
 /**
  * Site Health check.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Health;
+namespace AryanX\Axle\BlockThemeOps\Health;
 
-use AryanX\BlockThemeOps\Admin\DriftPage;
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Service;
+use AryanX\Axle\BlockThemeOps\Admin\DriftPage;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Service;
 
 defined( 'ABSPATH' ) || exit;
 

@@ -8,7 +8,7 @@
  * wp-content/bto-github-mock.json and answers with canned responses.
  * The token `test-token` is accepted; anything else gets a 401.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
 // phpcs:ignoreFile

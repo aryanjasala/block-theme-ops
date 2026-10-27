@@ -2,19 +2,19 @@
 /**
  * Tests for the drift check, its schedule, the alert email and the notice.
  *
- * @package AryanX\BlockThemeOps
+ * @package AryanX\Axle\BlockThemeOps
  */
 
-namespace AryanX\BlockThemeOps\Tests\Unit;
+namespace AryanX\Axle\BlockThemeOps\Tests\Unit;
 
-use AryanX\BlockThemeOps\Admin\Notice;
-use AryanX\BlockThemeOps\Alerts;
-use AryanX\BlockThemeOps\Backups;
-use AryanX\BlockThemeOps\Checker;
-use AryanX\BlockThemeOps\Drift;
-use AryanX\BlockThemeOps\Settings;
-use AryanX\BlockThemeOps\Snapshots;
-use AryanX\BlockThemeOps\Themes;
+use AryanX\Axle\BlockThemeOps\Admin\Notice;
+use AryanX\Axle\BlockThemeOps\Alerts;
+use AryanX\Axle\BlockThemeOps\Backups;
+use AryanX\Axle\BlockThemeOps\Checker;
+use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\Settings;
+use AryanX\Axle\BlockThemeOps\Snapshots;
+use AryanX\Axle\BlockThemeOps\Themes;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
