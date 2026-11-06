@@ -157,7 +157,8 @@ final class DriftPage implements Service {
 	 * Styles and the confirmation script.
 	 */
 	public function enqueue(): void {
-		wp_enqueue_style( 'block-theme-ops-admin', plugins_url( 'assets/admin.css', PLUGIN_FILE ), array(), VERSION );
+		AxleUi::enqueue();
+		wp_enqueue_style( 'block-theme-ops-admin', plugins_url( 'assets/admin.css', PLUGIN_FILE ), array( AxleUi::HANDLE ), VERSION );
 		wp_enqueue_script( 'block-theme-ops-admin', plugins_url( 'assets/admin.js', PLUGIN_FILE ), array( 'wp-hooks' ), VERSION, true );
 	}
 
@@ -174,7 +175,7 @@ final class DriftPage implements Service {
 		$item_id = isset( $_GET['item'] ) ? absint( wp_unslash( $_GET['item'] ) ) : 0;
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		echo '<div class="wrap bto-page">';
+		echo '<div class="wrap axle-ui bto-page">';
 		if ( $item_id ) {
 			$this->render_item( $item_id );
 		} else {
@@ -190,6 +191,7 @@ final class DriftPage implements Service {
 				$this->render_list();
 			}
 		}
+		AxleUi::footer();
 		echo '</div>';
 	}
 
@@ -246,7 +248,7 @@ final class DriftPage implements Service {
 		$themes = $this->drift->themes();
 		$theme  = wp_get_theme();
 		?>
-		<p class="bto-intro">
+		<p class="axle-intro bto-intro">
 			<?php
 			if ( $themes->template() !== $themes->stylesheet() ) {
 				/* translators: 1: theme name, 2: parent theme name. */
@@ -260,12 +262,12 @@ final class DriftPage implements Service {
 			?>
 		</p>
 
-		<div class="bto-cards">
+		<div class="axle-stats bto-cards">
 			<?php foreach ( Drift::STATUSES as $status ) : ?>
-				<a class="bto-card bto-card--<?php echo esc_attr( $status ); ?><?php echo $filter === $status ? ' is-current' : ''; ?>" href="<?php echo esc_url( self::url( array( 'status' => $status ) ) ); ?>">
-					<span class="bto-card__count"><?php echo esc_html( number_format_i18n( $counts[ $status ] ) ); ?></span>
-					<span class="bto-card__label"><?php echo esc_html( Drift::status_label( $status ) ); ?></span>
-					<span class="bto-card__help"><?php echo esc_html( self::status_help( $status ) ); ?></span>
+				<a class="axle-stat axle-stat--<?php echo esc_attr( self::tone( $status ) ); ?> bto-card bto-card--<?php echo esc_attr( $status ); ?><?php echo $filter === $status ? ' is-current' : ''; ?>" href="<?php echo esc_url( self::url( array( 'status' => $status ) ) ); ?>"<?php echo $filter === $status ? ' aria-current="true"' : ''; ?>>
+					<span class="axle-stat__value bto-card__count"><?php echo esc_html( number_format_i18n( $counts[ $status ] ) ); ?></span>
+					<span class="axle-stat__label bto-card__label"><?php echo esc_html( Drift::status_label( $status ) ); ?></span>
+					<span class="axle-muted bto-card__help"><?php echo esc_html( self::status_help( $status ) ); ?></span>
 				</a>
 			<?php endforeach; ?>
 		</div>
@@ -360,7 +362,7 @@ final class DriftPage implements Service {
 							<td><?php $this->file_cell( $item ); ?></td>
 							<td>
 								<?php echo esc_html( self::date( (int) $item['modified'] ) ); ?><br>
-								<span class="bto-muted">
+								<span class="axle-muted bto-muted">
 									<?php
 									/* translators: %s: user name. */
 									echo esc_html( sprintf( __( 'by %s', 'block-theme-ops' ), $item['author_name'] ) );
@@ -399,55 +401,50 @@ final class DriftPage implements Service {
 		<h1 class="bto-item-title">
 			<?php echo esc_html( $item['title'] ); ?>
 			<span class="bto-type"><?php echo esc_html( $item['type_label'] ); ?></span>
-			<?php $this->badge( $item ); ?>
+			<span class="axle-status"><?php $this->badge( $item ); ?></span>
 		</h1>
 		<hr class="wp-header-end">
 		<?php $this->render_notice(); ?>
 
-		<p class="bto-explain"><?php echo esc_html( self::status_help( $item['status'], $item['probable'] ) ); ?></p>
+		<p class="axle-intro bto-explain"><?php echo esc_html( self::status_help( $item['status'], $item['probable'] ) ); ?></p>
 		<?php if ( $item['kept'] ) : ?>
-			<p class="bto-explain"><?php esc_html_e( 'You chose to keep this database copy. It stays out of the list and the alerts until the theme file changes again.', 'block-theme-ops' ); ?></p>
+			<p class="axle-intro bto-explain"><?php esc_html_e( 'You chose to keep this database copy. It stays out of the list and the alerts until the theme file changes again.', 'block-theme-ops' ); ?></p>
 		<?php endif; ?>
 
-		<table class="bto-facts">
-			<tr>
-				<th scope="row"><?php esc_html_e( 'Theme file', 'block-theme-ops' ); ?></th>
-				<td><?php $this->file_cell( $item ); ?></td>
-			</tr>
-			<tr>
-				<th scope="row"><?php esc_html_e( 'Saved in the Site Editor', 'block-theme-ops' ); ?></th>
-				<td>
-					<?php
+		<section class="axle-card">
+		<dl class="axle-facts bto-facts">
+			<dt><?php esc_html_e( 'Theme file', 'block-theme-ops' ); ?></dt>
+			<dd><?php $this->file_cell( $item ); ?></dd>
+			<dt><?php esc_html_e( 'Saved in the Site Editor', 'block-theme-ops' ); ?></dt>
+			<dd>
+			<?php
 					/* translators: 1: date, 2: user name. */
 					echo esc_html( sprintf( __( '%1$s by %2$s', 'block-theme-ops' ), self::date( (int) $item['modified'] ), $item['author_name'] ) );
-					?>
-				</td>
-			</tr>
+			?>
+					</dd>
 			<?php if ( $item['file_modified'] ) : ?>
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Theme file changed', 'block-theme-ops' ); ?></th>
-					<td><?php echo esc_html( self::date( (int) $item['file_modified'] ) ); ?></td>
-				</tr>
+				<dt><?php esc_html_e( 'Theme file changed', 'block-theme-ops' ); ?></dt>
+			<dd><?php echo esc_html( self::date( (int) $item['file_modified'] ) ); ?></dd>
 			<?php endif; ?>
-			<tr>
-				<th scope="row"><?php esc_html_e( 'Snapshot of the theme file', 'block-theme-ops' ); ?></th>
-				<td>
-					<?php
-					if ( ! $snapshot ) {
-						esc_html_e( 'None. This was saved before Block Theme Ops was active.', 'block-theme-ops' );
-					} elseif ( 'baseline' === $snapshot['source'] ) {
-						/* translators: %s: date. */
-						echo esc_html( sprintf( __( 'Taken %s, when Block Theme Ops first saw this item. Older theme changes are not in it.', 'block-theme-ops' ), self::date( $snapshot['time'] ) ) );
-					} else {
-						/* translators: %s: date. */
-						echo esc_html( sprintf( __( 'Taken %s, when the database copy was saved.', 'block-theme-ops' ), self::date( $snapshot['time'] ) ) );
-					}
-					?>
-				</td>
-			</tr>
-		</table>
+			<dt><?php esc_html_e( 'Snapshot of the theme file', 'block-theme-ops' ); ?></dt>
+			<dd>
+			<?php
+			if ( ! $snapshot ) {
+				esc_html_e( 'None. This was saved before Block Theme Ops was active.', 'block-theme-ops' );
+			} elseif ( 'baseline' === $snapshot['source'] ) {
+				/* translators: %s: date. */
+				echo esc_html( sprintf( __( 'Taken %s, when Block Theme Ops first saw this item. Older theme changes are not in it.', 'block-theme-ops' ), self::date( $snapshot['time'] ) ) );
+			} else {
+				/* translators: %s: date. */
+				echo esc_html( sprintf( __( 'Taken %s, when the database copy was saved.', 'block-theme-ops' ), self::date( $snapshot['time'] ) ) );
+			}
+			?>
+					</dd>
+		</dl>
+		</section>
 
-		<div class="bto-actions">
+		<section class="axle-card">
+		<div class="axle-actions bto-actions">
 			<?php if ( '' !== $item['file'] ) : ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form" <?php $this->confirm_attributes(); ?>>
 					<?php $this->hidden( 'reset', (int) $item['id'] ); ?>
@@ -474,6 +471,7 @@ final class DriftPage implements Service {
 		<?php if ( ! $this->exporter->provider()->is_configured() ) : ?>
 			<p class="description bto-pr-hint" id="bto-pr-hint"><?php $this->settings_hint(); ?></p>
 		<?php endif; ?>
+		</section>
 
 		<?php
 		if ( null !== $views['file'] ) {
@@ -487,8 +485,8 @@ final class DriftPage implements Service {
 				__( 'Database copy', 'block-theme-ops' )
 			);
 		} else {
-			echo '<h2>' . esc_html__( 'Database copy', 'block-theme-ops' ) . '</h2>';
-			echo '<pre class="bto-code" dir="ltr">' . esc_html( $views['database'] ) . '</pre>';
+			echo '<section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'Database copy', 'block-theme-ops' ) . '</h2>';
+			echo '<pre class="bto-code" dir="ltr">' . esc_html( $views['database'] ) . '</pre></section>';
 		}
 
 		if ( null !== $views['snapshot'] && null !== $views['file'] ) {
@@ -511,7 +509,7 @@ final class DriftPage implements Service {
 				__( 'Database copy', 'block-theme-ops' )
 			);
 		} elseif ( null !== $views['file'] ) {
-			echo '<p class="bto-muted">' . esc_html__( 'There is no snapshot of the theme file from the time of the edit, so the theme\'s own changes cannot be shown apart from the customization.', 'block-theme-ops' ) . '</p>';
+			echo '<p class="axle-muted bto-muted">' . esc_html__( 'There is no snapshot of the theme file from the time of the edit, so the theme\'s own changes cannot be shown apart from the customization.', 'block-theme-ops' ) . '</p>';
 		}
 	}
 
@@ -537,11 +535,11 @@ final class DriftPage implements Service {
 			)
 		);
 		?>
-		<section class="bto-diff" id="<?php echo esc_attr( $id ); ?>">
-			<h2><?php echo esc_html( $title ); ?></h2>
-			<p class="bto-muted"><?php echo esc_html( $help ); ?></p>
+		<section class="axle-card bto-diff" id="<?php echo esc_attr( $id ); ?>">
+			<h2 class="axle-card__title"><?php echo esc_html( $title ); ?></h2>
+			<p class="axle-muted"><?php echo esc_html( $help ); ?></p>
 			<?php if ( '' === $diff ) : ?>
-				<p class="bto-same"><?php esc_html_e( 'No differences.', 'block-theme-ops' ); ?></p>
+				<div class="notice notice-success inline bto-same"><p><?php esc_html_e( 'No differences.', 'block-theme-ops' ); ?></p></div>
 			<?php else : ?>
 				<?php // Block markup and JSON read left to right, in every language. ?>
 				<div class="bto-diff__table" dir="ltr"><?php echo wp_kses_post( $diff ); ?></div>
@@ -556,7 +554,7 @@ final class DriftPage implements Service {
 	private function render_backups(): void {
 		$backups = $this->backups->all();
 		?>
-		<p class="bto-intro">
+		<p class="axle-intro bto-intro">
 			<?php
 			/* translators: %d: number of days. */
 			echo esc_html( sprintf( _n( 'Every reset keeps a backup of the database copy for %d day. Undo puts it back as it was.', 'Every reset keeps a backup of the database copy for %d days. Undo puts it back as it was.', Backups::days(), 'block-theme-ops' ), Backups::days() ) );
@@ -599,7 +597,7 @@ final class DriftPage implements Service {
 								</form>
 							<?php else : ?>
 								<p class="bto-blocked" data-reason="<?php echo esc_attr( $blocker ); ?>">
-									<strong><?php echo esc_html( Operations::RESTORED === $blocker ? __( 'Back already', 'block-theme-ops' ) : __( 'Customized again since', 'block-theme-ops' ) ); ?></strong><br>
+									<span class="axle-badge axle-badge--<?php echo esc_attr( Operations::RESTORED === $blocker ? 'good' : 'warning' ); ?>"><?php echo esc_html( Operations::RESTORED === $blocker ? __( 'Back already', 'block-theme-ops' ) : __( 'Customized again since', 'block-theme-ops' ) ); ?></span><br>
 									<?php echo esc_html( Operations::blocked_message( $blocker, $backup ) ); ?>
 								</p>
 							<?php endif; ?>
@@ -620,7 +618,8 @@ final class DriftPage implements Service {
 		?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-settings">
 			<?php $this->hidden( 'save_settings', 0, array( 'tab' => 'settings' ) ); ?>
-			<h2><?php esc_html_e( 'Alerts', 'block-theme-ops' ); ?></h2>
+			<section class="axle-card">
+			<h2 class="axle-card__title"><?php esc_html_e( 'Alerts', 'block-theme-ops' ); ?></h2>
 			<table class="form-table" role="presentation">
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Email', 'block-theme-ops' ); ?></th>
@@ -636,8 +635,10 @@ final class DriftPage implements Service {
 					</td>
 				</tr>
 			</table>
+			</section>
 
-			<h2><?php esc_html_e( 'GitHub pull requests', 'block-theme-ops' ); ?></h2>
+			<section class="axle-card">
+			<h2 class="axle-card__title"><?php esc_html_e( 'GitHub pull requests', 'block-theme-ops' ); ?></h2>
 			<p><?php esc_html_e( 'Send Site Editor changes to the theme\'s repository as a pull request, so they end up in the theme files. Only the files you export are sent, and only when you ask.', 'block-theme-ops' ); ?></p>
 			<table class="form-table" role="presentation">
 				<tr>
@@ -662,7 +663,7 @@ final class DriftPage implements Service {
 					<th scope="row"><label for="bto-token"><?php esc_html_e( 'Access token', 'block-theme-ops' ); ?></label></th>
 					<td>
 						<?php if ( 'constant' === $source || 'environment' === $source ) : ?>
-							<p class="bto-token-status">
+							<p class="axle-muted bto-token-status">
 								<?php
 								echo esc_html(
 									'constant' === $source
@@ -674,7 +675,7 @@ final class DriftPage implements Service {
 						<?php else : ?>
 							<input type="password" id="bto-token" name="token" class="regular-text code" value="" autocomplete="new-password" placeholder="<?php echo 'option' === $source ? esc_attr__( 'Saved. Type a new one to replace it.', 'block-theme-ops' ) : 'github_pat_...'; ?>">
 							<?php if ( 'option' === $source ) : ?>
-								<p class="bto-token-status"><?php esc_html_e( 'A token is saved. It is never shown again.', 'block-theme-ops' ); ?></p>
+								<p class="axle-muted bto-token-status"><?php esc_html_e( 'A token is saved. It is never shown again.', 'block-theme-ops' ); ?></p>
 								<label><input type="checkbox" name="remove_token" value="1"> <?php esc_html_e( 'Remove the saved token', 'block-theme-ops' ); ?></label>
 							<?php endif; ?>
 							<p class="description"><?php esc_html_e( 'A fine-grained token for this one repository, with read and write access to Contents and Pull requests. Better: define BLOCK_THEME_OPS_GITHUB_TOKEN in wp-config.php, so the token is not stored in the database.', 'block-theme-ops' ); ?></p>
@@ -682,6 +683,7 @@ final class DriftPage implements Service {
 					</td>
 				</tr>
 			</table>
+			</section>
 			<?php submit_button( __( 'Save settings', 'block-theme-ops' ) ); ?>
 		</form>
 		<?php
@@ -1036,21 +1038,42 @@ final class DriftPage implements Service {
 	}
 
 	/**
+	 * The tone of a status: theme changed needs a look, customized is a fact,
+	 * database only is not comparable, identical is safe.
+	 *
+	 * @param string $status Status.
+	 * @return string
+	 */
+	public static function tone( string $status ): string {
+		switch ( $status ) {
+			case Drift::THEME_CHANGED:
+				return 'warning';
+			case Drift::CUSTOMIZED:
+				return 'info';
+			case Drift::IDENTICAL:
+				return 'good';
+			default:
+				return 'neutral';
+		}
+	}
+
+	/**
 	 * Prints a status badge.
 	 *
 	 * @param array $item Item.
 	 */
 	private function badge( array $item ): void {
 		printf(
-			'<span class="bto-badge bto-badge--%s">%s</span>',
+			'<span class="axle-badge axle-badge--%s bto-badge bto-badge--%s">%s</span>',
+			esc_attr( self::tone( $item['status'] ) ),
 			esc_attr( $item['status'] ),
 			esc_html( Drift::status_label( $item['status'] ) )
 		);
 		if ( $item['probable'] ) {
-			echo ' <span class="bto-probable" title="' . esc_attr__( 'Saved before Block Theme Ops was active: a guess from file dates.', 'block-theme-ops' ) . '">' . esc_html__( 'probably', 'block-theme-ops' ) . '</span>';
+			echo ' <span class="axle-muted bto-probable" title="' . esc_attr__( 'Saved before Block Theme Ops was active: a guess from file dates.', 'block-theme-ops' ) . '">' . esc_html__( 'probably', 'block-theme-ops' ) . '</span>';
 		}
 		if ( $item['kept'] ) {
-			echo ' <span class="bto-badge bto-badge--kept">' . esc_html__( 'Kept', 'block-theme-ops' ) . '</span>';
+			echo ' <span class="axle-badge axle-badge--neutral bto-badge bto-badge--kept">' . esc_html__( 'Kept', 'block-theme-ops' ) . '</span>';
 		}
 	}
 
@@ -1061,14 +1084,14 @@ final class DriftPage implements Service {
 	 */
 	private function file_cell( array $item ): void {
 		if ( '' === $item['file'] ) {
-			echo '<span class="bto-muted">' . esc_html__( 'None', 'block-theme-ops' ) . '</span>';
+			echo '<span class="axle-muted bto-muted">' . esc_html__( 'None', 'block-theme-ops' ) . '</span>';
 			return;
 		}
 
 		echo '<code dir="ltr">' . esc_html( $item['file'] ) . '</code>';
 		if ( $item['file_theme'] !== $item['theme'] ) {
 			/* translators: %s: parent theme folder name. */
-			echo '<br><span class="bto-muted">' . esc_html( sprintf( __( 'in the parent theme, %s', 'block-theme-ops' ), $item['file_theme'] ) ) . '</span>';
+			echo '<br><span class="axle-muted bto-muted">' . esc_html( sprintf( __( 'in the parent theme, %s', 'block-theme-ops' ), $item['file_theme'] ) ) . '</span>';
 		}
 	}
 
