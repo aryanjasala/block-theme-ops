@@ -7,10 +7,14 @@
 
 namespace AryanX\Axle\BlockThemeOps\Admin;
 
+use AryanX\Axle\BlockThemeOps\Abilities;
 use AryanX\Axle\BlockThemeOps\Alerts;
 use AryanX\Axle\BlockThemeOps\Backups;
 use AryanX\Axle\BlockThemeOps\Drift;
 use AryanX\Axle\BlockThemeOps\Exporter;
+use AryanX\Axle\BlockThemeOps\Importer;
+use AryanX\Axle\BlockThemeOps\Locks;
+use AryanX\Axle\BlockThemeOps\Markup;
 use AryanX\Axle\BlockThemeOps\Operations;
 use AryanX\Axle\BlockThemeOps\Service;
 use AryanX\Axle\BlockThemeOps\Settings;
@@ -72,6 +76,20 @@ final class DriftPage implements Service {
 	private Alerts $alerts;
 
 	/**
+	 * Import.
+	 *
+	 * @var Importer
+	 */
+	private Importer $importer;
+
+	/**
+	 * Locks.
+	 *
+	 * @var Locks
+	 */
+	private Locks $locks;
+
+	/**
 	 * Sets up the screen.
 	 *
 	 * @param Drift      $drift      Inventory.
@@ -80,14 +98,18 @@ final class DriftPage implements Service {
 	 * @param Backups    $backups    Backups.
 	 * @param Settings   $settings   Settings.
 	 * @param Alerts     $alerts     Pending alerts.
+	 * @param Importer   $importer   Import.
+	 * @param Locks      $locks      Locks.
 	 */
-	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Settings $settings, Alerts $alerts ) {
+	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Settings $settings, Alerts $alerts, Importer $importer, Locks $locks ) {
 		$this->drift      = $drift;
 		$this->operations = $operations;
 		$this->exporter   = $exporter;
 		$this->backups    = $backups;
 		$this->settings   = $settings;
 		$this->alerts     = $alerts;
+		$this->importer   = $importer;
+		$this->locks      = $locks;
 	}
 
 	/**
@@ -138,7 +160,78 @@ final class DriftPage implements Service {
 		$hook = add_theme_page( __( 'Theme Drift', 'block-theme-ops' ), $menu, self::capability(), self::SLUG, array( $this, 'render' ) );
 		if ( $hook ) {
 			add_action( "admin_print_styles-{$hook}", array( $this, 'enqueue' ) );
+			add_action( "load-{$hook}", array( $this, 'help' ) );
 		}
+	}
+
+	/**
+	 * Help tabs: an overview, and one tab for each job of the tab that is open.
+	 */
+	public function help(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Navigation only.
+		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+
+		$tabs = array(
+			array(
+				'id'      => 'overview',
+				'title'   => __( 'Overview', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'When someone saves a template, a template part or the styles in the Site Editor, WordPress keeps a copy in the database and the site ignores the theme file from then on. Theme Drift lists those copies and how each one relates to its theme file.', 'block-theme-ops' ) . '</p>',
+			),
+		);
+
+		if ( 'import' === $tab ) {
+			$tabs[] = array(
+				'id'      => 'import-preview',
+				'title'   => __( 'Preview', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Upload a zip from Download zip on another site. Nothing changes until you choose items and press Import. Each item is new, changed, identical or for another theme. Items you changed here too are not ticked for you.', 'block-theme-ops' ) . '</p>',
+			);
+			$tabs[] = array(
+				'id'      => 'import-undo',
+				'title'   => __( 'Undo', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Every import keeps a backup of what it overwrites. One Undo on the Backups tab puts everything back for 30 days. An item that someone changed again since is left alone.', 'block-theme-ops' ) . '</p>',
+			);
+		} elseif ( 'locks' === $tab ) {
+			$tabs[] = array(
+				'id'      => 'locks-how',
+				'title'   => __( 'How locks work', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'A locked template cannot be saved from the Site Editor or the REST API. The save is refused with a message, and the Site Editor shows a notice when someone opens it. Reset, import and Undo here still work.', 'block-theme-ops' ) . '</p>',
+			);
+			$tabs[] = array(
+				'id'      => 'locks-env',
+				'title'   => __( 'Environments', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Locks only apply on the environment types you tick, production by default. Set WP_ENVIRONMENT_TYPE in wp-config.php to tell WordPress which one a site is.', 'block-theme-ops' ) . '</p>',
+			);
+		} elseif ( 'backups' === $tab ) {
+			$tabs[] = array(
+				'id'      => 'backups-undo',
+				'title'   => __( 'Undo', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Each reset and each import keeps a backup. Undo puts the database copy back as it was. A backup is deleted when its undo time has passed.', 'block-theme-ops' ) . '</p>',
+			);
+		} elseif ( 'settings' === $tab ) {
+			$tabs[] = array(
+				'id'      => 'settings-github',
+				'title'   => __( 'GitHub token', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'A pull request needs a fine-grained token for one repository, with read and write access to Contents and Pull requests. A saved token is encrypted. Defining BLOCK_THEME_OPS_GITHUB_TOKEN in wp-config.php keeps it out of the database.', 'block-theme-ops' ) . '</p>',
+			);
+		} else {
+			$tabs[] = array(
+				'id'      => 'statuses',
+				'title'   => __( 'Statuses', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Theme changed: the theme file changed after the edit, so the site ignores it. Customized: changed in the Site Editor and the file has not changed since. Database only: no theme file behind it. Identical: the same as the theme file, safe to reset.', 'block-theme-ops' ) . '</p>',
+			);
+			$tabs[] = array(
+				'id'      => 'reset-keep',
+				'title'   => __( 'Reset and keep', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Reset to theme file deletes the database copy so the theme file takes over. A backup is kept and you can undo it. Keep says the copy is on purpose and hides it until its theme file changes again.', 'block-theme-ops' ) . '</p>',
+			);
+			$tabs[] = array(
+				'id'      => 'export',
+				'title'   => __( 'Export', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Download zip makes a zip laid out like the theme, which you can import on another site. Open pull request sends the same files to your theme repository as one commit.', 'block-theme-ops' ) . '</p>',
+			);
+		}
+
+		AxleUi::help_tabs( $tabs );
 	}
 
 	/**
@@ -154,12 +247,20 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Styles and the confirmation script.
+	 * Styles and the screen's script.
 	 */
 	public function enqueue(): void {
 		AxleUi::enqueue();
 		wp_enqueue_style( 'block-theme-ops-admin', plugins_url( 'assets/admin.css', PLUGIN_FILE ), array( AxleUi::HANDLE ), VERSION );
-		wp_enqueue_script( 'block-theme-ops-admin', plugins_url( 'assets/admin.js', PLUGIN_FILE ), array( 'wp-hooks' ), VERSION, true );
+		wp_enqueue_script( 'block-theme-ops-admin', plugins_url( 'assets/admin.js', PLUGIN_FILE ), array( 'wp-hooks', 'wp-a11y' ), VERSION, true );
+		wp_localize_script(
+			'block-theme-ops-admin',
+			'blockThemeOpsAdmin',
+			array(
+				'cancel'  => __( 'Cancel', 'block-theme-ops' ),
+				'working' => __( 'Working. Please wait.', 'block-theme-ops' ),
+			)
+		);
 	}
 
 	/**
@@ -173,6 +274,7 @@ final class DriftPage implements Service {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Navigation only.
 		$tab     = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
 		$item_id = isset( $_GET['item'] ) ? absint( wp_unslash( $_GET['item'] ) ) : 0;
+		$review  = isset( $_GET['review'] ) ? sanitize_key( wp_unslash( $_GET['review'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		echo '<div class="wrap axle-ui bto-page">';
@@ -183,10 +285,15 @@ final class DriftPage implements Service {
 			echo '<hr class="wp-header-end">';
 			$this->render_notice();
 			$this->render_tabs( $tab );
+			echo '<div id="bto-confirm-slot" class="bto-confirm-slot"></div>';
 			if ( 'backups' === $tab ) {
 				$this->render_backups();
 			} elseif ( 'settings' === $tab ) {
 				$this->render_settings();
+			} elseif ( 'import' === $tab ) {
+				$this->render_import( $review );
+			} elseif ( 'locks' === $tab ) {
+				$this->render_locks();
 			} else {
 				$this->render_list();
 			}
@@ -203,6 +310,8 @@ final class DriftPage implements Service {
 	private function render_tabs( string $current ): void {
 		$tabs = array(
 			''         => __( 'Drift', 'block-theme-ops' ),
+			'import'   => __( 'Import', 'block-theme-ops' ),
+			'locks'    => __( 'Locks', 'block-theme-ops' ),
 			'backups'  => __( 'Backups', 'block-theme-ops' ),
 			'settings' => __( 'Settings', 'block-theme-ops' ),
 		);
@@ -272,6 +381,22 @@ final class DriftPage implements Service {
 			<?php endforeach; ?>
 		</div>
 
+		<?php if ( ! $all ) : ?>
+			<div class="axle-empty bto-empty">
+				<p><strong><?php esc_html_e( 'Nothing in the database overrides the theme.', 'block-theme-ops' ); ?></strong></p>
+				<p><?php esc_html_e( 'Everything comes from the theme files. When someone saves a template, a template part or the styles in the Site Editor, it shows up here with its status, who saved it and how it differs from the theme file.', 'block-theme-ops' ); ?></p>
+				<p>
+					<?php if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() && current_user_can( 'edit_theme_options' ) ) : ?>
+						<a class="button" href="<?php echo esc_url( admin_url( 'site-editor.php' ) ); ?>"><?php esc_html_e( 'Open the Site Editor', 'block-theme-ops' ); ?></a>
+					<?php endif; ?>
+					<a class="button" href="<?php echo esc_url( self::url( array( 'tab' => 'import' ) ) ); ?>"><?php esc_html_e( 'Import changes from another site', 'block-theme-ops' ); ?></a>
+				</p>
+			</div>
+			<?php
+			return;
+		endif;
+		?>
+
 		<ul class="subsubsub">
 			<li><a href="<?php echo esc_url( self::url() ); ?>"<?php echo '' === $filter ? ' class="current" aria-current="page"' : ''; ?>><?php esc_html_e( 'All', 'block-theme-ops' ); ?> <span class="count">(<?php echo esc_html( number_format_i18n( $counts['all'] ) ); ?>)</span></a> |</li>
 			<?php foreach ( Drift::STATUSES as $status ) : ?>
@@ -280,43 +405,52 @@ final class DriftPage implements Service {
 			<li><a href="<?php echo esc_url( self::url( array( 'status' => 'kept' ) ) ); ?>"<?php echo 'kept' === $filter ? ' class="current" aria-current="page"' : ''; ?>><?php esc_html_e( 'Kept', 'block-theme-ops' ); ?> <span class="count">(<?php echo esc_html( number_format_i18n( $counts['kept'] ) ); ?>)</span></a></li>
 		</ul>
 
-		<?php if ( $counts[ Drift::IDENTICAL ] ) : ?>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-identical" data-bto-confirm-reset_identical="<?php esc_attr_e( 'Reset every item that matches its theme file? Each one is backed up first and can be undone.', 'block-theme-ops' ); ?>">
-				<?php $this->hidden( 'reset_identical' ); ?>
-				<button type="submit" class="button">
-					<?php
-					/* translators: %d: number of items. */
-					echo esc_html( sprintf( _n( 'Reset %d identical item', 'Reset all %d identical items', $counts[ Drift::IDENTICAL ], 'block-theme-ops' ), $counts[ Drift::IDENTICAL ] ) );
-					?>
-				</button>
-			</form>
-		<?php endif; ?>
-
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-list-form" <?php $this->confirm_attributes(); ?>>
-			<?php $this->hidden( 'bulk', 0, array( 'status' => $filter ) ); ?>
-			<div class="tablenav top">
-				<div class="alignleft actions bulkactions">
-					<label for="bto-bulk-action" class="screen-reader-text"><?php esc_html_e( 'Bulk action', 'block-theme-ops' ); ?></label>
-					<select name="bulk_action" id="bto-bulk-action">
-						<option value=""><?php esc_html_e( 'Bulk actions', 'block-theme-ops' ); ?></option>
-						<option value="reset"><?php esc_html_e( 'Reset to theme file', 'block-theme-ops' ); ?></option>
-						<?php if ( 'kept' === $filter ) : ?>
-							<option value="unkeep"><?php esc_html_e( 'List again', 'block-theme-ops' ); ?></option>
-						<?php else : ?>
-							<option value="keep"><?php esc_html_e( 'Keep', 'block-theme-ops' ); ?></option>
-						<?php endif; ?>
-						<option value="export"><?php esc_html_e( 'Download zip', 'block-theme-ops' ); ?></option>
-						<?php if ( $this->exporter->provider()->is_configured() ) : ?>
-							<option value="pr"><?php esc_html_e( 'Open pull request', 'block-theme-ops' ); ?></option>
-						<?php else : ?>
-							<option value="pr" disabled><?php esc_html_e( 'Open pull request (set up GitHub under Settings first)', 'block-theme-ops' ); ?></option>
-						<?php endif; ?>
-					</select>
-					<button type="submit" class="button action"><?php esc_html_e( 'Apply', 'block-theme-ops' ); ?></button>
-				</div>
-				<br class="clear">
+		<?php if ( ! $items ) : ?>
+			<div class="axle-empty bto-empty">
+				<p><?php esc_html_e( 'No items with this status.', 'block-theme-ops' ); ?></p>
+				<p><a class="button" href="<?php echo esc_url( self::url() ); ?>"><?php esc_html_e( 'Show all items', 'block-theme-ops' ); ?></a></p>
 			</div>
+			<?php
+			return;
+		endif;
+		?>
 
+		<div class="axle-toolbar bto-toolbar">
+			<label for="bto-bulk-action" class="screen-reader-text"><?php esc_html_e( 'Bulk action', 'block-theme-ops' ); ?></label>
+			<select name="bulk_action" id="bto-bulk-action" form="bto-list-form">
+				<option value=""><?php esc_html_e( 'Bulk actions', 'block-theme-ops' ); ?></option>
+				<option value="reset"><?php esc_html_e( 'Reset to theme file', 'block-theme-ops' ); ?></option>
+				<?php if ( 'kept' === $filter ) : ?>
+					<option value="unkeep"><?php esc_html_e( 'List again', 'block-theme-ops' ); ?></option>
+				<?php else : ?>
+					<option value="keep"><?php esc_html_e( 'Keep', 'block-theme-ops' ); ?></option>
+				<?php endif; ?>
+				<option value="export"><?php esc_html_e( 'Download zip', 'block-theme-ops' ); ?></option>
+				<?php if ( $this->exporter->provider()->is_configured() ) : ?>
+					<option value="pr"><?php esc_html_e( 'Open pull request', 'block-theme-ops' ); ?></option>
+				<?php else : ?>
+					<option value="pr" disabled><?php esc_html_e( 'Open pull request (set up GitHub under Settings first)', 'block-theme-ops' ); ?></option>
+				<?php endif; ?>
+			</select>
+			<button type="submit" class="button action" form="bto-list-form"><?php esc_html_e( 'Apply', 'block-theme-ops' ); ?></button>
+			<?php if ( $counts[ Drift::IDENTICAL ] ) : ?>
+				<span class="axle-toolbar__end">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-identical" data-bto-confirm-reset_identical="<?php echo esc_attr( $this->reset_identical_message( $counts[ Drift::IDENTICAL ] ) ); ?>">
+						<?php $this->hidden( 'reset_identical' ); ?>
+						<button type="submit" class="button">
+							<?php
+							/* translators: %d: number of items. */
+							echo esc_html( sprintf( _n( 'Reset %d identical item', 'Reset all %d identical items', $counts[ Drift::IDENTICAL ], 'block-theme-ops' ), $counts[ Drift::IDENTICAL ] ) );
+							?>
+						</button>
+					</form>
+				</span>
+			<?php endif; ?>
+		</div>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="bto-list-form" class="bto-form bto-list-form" <?php $this->confirm_attributes(); ?>>
+			<?php $this->hidden( 'bulk', 0, array( 'status' => $filter ) ); ?>
+			<div class="axle-scroll" tabindex="0" role="region" aria-label="<?php esc_attr_e( 'Site Editor changes', 'block-theme-ops' ); ?>">
 			<table class="wp-list-table widefat fixed striped bto-table">
 				<thead>
 					<tr>
@@ -329,9 +463,6 @@ final class DriftPage implements Service {
 					</tr>
 				</thead>
 				<tbody>
-					<?php if ( ! $items ) : ?>
-						<tr class="no-items"><td class="colspanchange" colspan="6"><?php echo esc_html( $all ? __( 'Nothing here.', 'block-theme-ops' ) : __( 'Nothing in the database overrides the theme. Everything comes from the theme files.', 'block-theme-ops' ) ); ?></td></tr>
-					<?php endif; ?>
 					<?php foreach ( $items as $item ) : ?>
 						<tr class="bto-row bto-row--<?php echo esc_attr( $item['status'] ); ?>" data-id="<?php echo esc_attr( (string) $item['id'] ); ?>">
 							<th scope="row" class="check-column">
@@ -361,7 +492,7 @@ final class DriftPage implements Service {
 							<td><?php $this->badge( $item ); ?></td>
 							<td><?php $this->file_cell( $item ); ?></td>
 							<td>
-								<?php echo esc_html( self::date( (int) $item['modified'] ) ); ?><br>
+								<?php echo wp_kses( AxleUi::relative_time( (int) $item['modified'] ), self::time_tags() ); ?><br>
 								<span class="axle-muted bto-muted">
 									<?php
 									/* translators: %s: user name. */
@@ -369,11 +500,20 @@ final class DriftPage implements Service {
 									?>
 								</span>
 							</td>
-							<td><?php echo esc_html( $item['file_modified'] ? self::date( (int) $item['file_modified'] ) : '' ); ?></td>
+							<td>
+								<?php
+								if ( $item['file_modified'] ) {
+									echo wp_kses( AxleUi::relative_time( (int) $item['file_modified'] ), self::time_tags() );
+								} else {
+									echo '<span class="axle-muted bto-muted">' . esc_html__( 'No theme file', 'block-theme-ops' ) . '</span>';
+								}
+								?>
+							</td>
 						</tr>
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+			</div>
 		</form>
 		<?php
 	}
@@ -405,6 +545,7 @@ final class DriftPage implements Service {
 		</h1>
 		<hr class="wp-header-end">
 		<?php $this->render_notice(); ?>
+		<div id="bto-confirm-slot" class="bto-confirm-slot"></div>
 
 		<p class="axle-intro bto-explain"><?php echo esc_html( self::status_help( $item['status'], $item['probable'] ) ); ?></p>
 		<?php if ( $item['kept'] ) : ?>
@@ -417,29 +558,29 @@ final class DriftPage implements Service {
 			<dd><?php $this->file_cell( $item ); ?></dd>
 			<dt><?php esc_html_e( 'Saved in the Site Editor', 'block-theme-ops' ); ?></dt>
 			<dd>
-			<?php
-					/* translators: 1: date, 2: user name. */
-					echo esc_html( sprintf( __( '%1$s by %2$s', 'block-theme-ops' ), self::date( (int) $item['modified'] ), $item['author_name'] ) );
-			?>
-					</dd>
+				<?php
+				/* translators: 1: relative time such as "5 minutes ago", 2: user name. */
+				echo wp_kses( sprintf( esc_html__( '%1$s by %2$s', 'block-theme-ops' ), AxleUi::relative_time( (int) $item['modified'] ), esc_html( $item['author_name'] ) ), self::time_tags() );
+				?>
+			</dd>
 			<?php if ( $item['file_modified'] ) : ?>
 				<dt><?php esc_html_e( 'Theme file changed', 'block-theme-ops' ); ?></dt>
-			<dd><?php echo esc_html( self::date( (int) $item['file_modified'] ) ); ?></dd>
+				<dd><?php echo wp_kses( AxleUi::relative_time( (int) $item['file_modified'] ), self::time_tags() ); ?></dd>
 			<?php endif; ?>
 			<dt><?php esc_html_e( 'Snapshot of the theme file', 'block-theme-ops' ); ?></dt>
 			<dd>
-			<?php
-			if ( ! $snapshot ) {
-				esc_html_e( 'None. This was saved before Block Theme Ops was active.', 'block-theme-ops' );
-			} elseif ( 'baseline' === $snapshot['source'] ) {
-				/* translators: %s: date. */
-				echo esc_html( sprintf( __( 'Taken %s, when Block Theme Ops first saw this item. Older theme changes are not in it.', 'block-theme-ops' ), self::date( $snapshot['time'] ) ) );
-			} else {
-				/* translators: %s: date. */
-				echo esc_html( sprintf( __( 'Taken %s, when the database copy was saved.', 'block-theme-ops' ), self::date( $snapshot['time'] ) ) );
-			}
-			?>
-					</dd>
+				<?php
+				if ( ! $snapshot ) {
+					esc_html_e( 'None. This was saved before Block Theme Ops was active.', 'block-theme-ops' );
+				} elseif ( 'baseline' === $snapshot['source'] ) {
+					/* translators: %s: relative time such as "5 minutes ago". */
+					echo wp_kses( sprintf( esc_html__( 'Taken %s, when Block Theme Ops first saw this item. Older theme changes are not in it.', 'block-theme-ops' ), AxleUi::relative_time( $snapshot['time'] ) ), self::time_tags() );
+				} else {
+					/* translators: %s: relative time such as "5 minutes ago". */
+					echo wp_kses( sprintf( esc_html__( 'Taken %s, when the database copy was saved.', 'block-theme-ops' ), AxleUi::relative_time( $snapshot['time'] ) ), self::time_tags() );
+				}
+				?>
+			</dd>
 		</dl>
 		</section>
 
@@ -542,7 +683,7 @@ final class DriftPage implements Service {
 				<div class="notice notice-success inline bto-same"><p><?php esc_html_e( 'No differences.', 'block-theme-ops' ); ?></p></div>
 			<?php else : ?>
 				<?php // Block markup and JSON read left to right, in every language. ?>
-				<div class="bto-diff__table" dir="ltr"><?php echo wp_kses_post( $diff ); ?></div>
+				<div class="axle-scroll bto-diff__table" dir="ltr" tabindex="0" role="region" aria-label="<?php echo esc_attr( $title ); ?>"><?php echo wp_kses_post( $diff ); ?></div>
 			<?php endif; ?>
 		</section>
 		<?php
@@ -557,43 +698,69 @@ final class DriftPage implements Service {
 		<p class="axle-intro bto-intro">
 			<?php
 			/* translators: %d: number of days. */
-			echo esc_html( sprintf( _n( 'Every reset keeps a backup of the database copy for %d day. Undo puts it back as it was.', 'Every reset keeps a backup of the database copy for %d days. Undo puts it back as it was.', Backups::days(), 'block-theme-ops' ), Backups::days() ) );
+			echo esc_html( sprintf( _n( 'Every reset and every import keeps a backup of what it changes for %d day. Undo puts it back as it was.', 'Every reset and every import keeps a backup of what it changes for %d days. Undo puts it back as it was.', Backups::days(), 'block-theme-ops' ), Backups::days() ) );
 			?>
 		</p>
+		<?php if ( ! $backups ) : ?>
+			<div class="axle-empty bto-empty">
+				<p><strong><?php esc_html_e( 'No resets or imports to undo.', 'block-theme-ops' ); ?></strong></p>
+				<p><?php esc_html_e( 'When you reset an item to its theme file, or import changes from another site, the backup shows up here until its undo time has passed.', 'block-theme-ops' ); ?></p>
+			</div>
+			<?php
+			return;
+		endif;
+		?>
+		<div class="axle-scroll" tabindex="0" role="region" aria-label="<?php esc_attr_e( 'Backups', 'block-theme-ops' ); ?>">
 		<table class="wp-list-table widefat fixed striped bto-backups">
 			<thead>
 				<tr>
 					<th scope="col" class="column-primary"><?php esc_html_e( 'Item', 'block-theme-ops' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Theme', 'block-theme-ops' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Reset', 'block-theme-ops' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Changed', 'block-theme-ops' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Can be undone until', 'block-theme-ops' ); ?></th>
 					<th scope="col"><span class="screen-reader-text"><?php esc_html_e( 'Actions', 'block-theme-ops' ); ?></span></th>
 				</tr>
 			</thead>
 			<tbody>
-				<?php if ( ! $backups ) : ?>
-					<tr class="no-items"><td colspan="5"><?php esc_html_e( 'No resets to undo.', 'block-theme-ops' ); ?></td></tr>
-				<?php endif; ?>
 				<?php foreach ( $backups as $backup ) : ?>
+					<?php $is_import = 'import' === ( $backup['kind'] ?? '' ); ?>
 					<tr class="bto-backup" data-id="<?php echo esc_attr( (string) $backup['id'] ); ?>">
 						<td class="column-primary">
 							<strong><?php echo esc_html( (string) ( $backup['item']['title'] ?? $backup['title'] ) ); ?></strong>
-							<span class="bto-type"><?php echo esc_html( Drift::type_label( (string) $backup['post_type'] ) ); ?> &middot; <code dir="ltr"><?php echo esc_html( (string) ( $backup['item']['key'] ?? $backup['slug'] ) ); ?></code></span>
+							<?php if ( $is_import ) : ?>
+								<span class="bto-type">
+									<?php
+									echo esc_html(
+										implode(
+											', ',
+											array_map(
+												static function ( array $record ): string {
+													return (string) $record['key'];
+												},
+												(array) $backup['records']
+											)
+										)
+									);
+									?>
+								</span>
+							<?php else : ?>
+								<span class="bto-type"><?php echo esc_html( Drift::type_label( (string) $backup['post_type'] ) ); ?> &middot; <code dir="ltr"><?php echo esc_html( (string) ( $backup['item']['key'] ?? $backup['slug'] ) ); ?></code></span>
+							<?php endif; ?>
 						</td>
 						<td><?php echo esc_html( (string) $backup['theme'] ); ?></td>
 						<td>
 							<?php
-							/* translators: 1: date, 2: user name. */
-							echo esc_html( sprintf( __( '%1$s by %2$s', 'block-theme-ops' ), self::date( (int) $backup['reset_at'] ), Drift::user_name( (int) $backup['reset_by'] ) ) );
+							/* translators: 1: relative time such as "5 minutes ago", 2: user name. */
+							echo wp_kses( sprintf( esc_html__( '%1$s by %2$s', 'block-theme-ops' ), AxleUi::relative_time( (int) $backup['reset_at'] ), esc_html( Drift::user_name( (int) $backup['reset_by'] ) ) ), self::time_tags() );
 							?>
 						</td>
-						<td><?php echo esc_html( self::date( (int) $backup['undo_until'] ) ); ?></td>
+						<td><?php echo wp_kses( AxleUi::relative_time( (int) $backup['undo_until'] ), self::time_tags() ); ?></td>
 						<td>
-							<?php $blocker = $this->operations->undo_blocker( $backup ); ?>
+							<?php $blocker = $is_import ? '' : $this->operations->undo_blocker( $backup ); ?>
 							<?php if ( '' === $blocker ) : ?>
 								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form">
 									<?php $this->hidden( 'undo', (int) $backup['id'], array( 'tab' => 'backups' ) ); ?>
-									<button type="submit" class="button"><?php esc_html_e( 'Undo reset', 'block-theme-ops' ); ?></button>
+									<button type="submit" class="button"><?php echo esc_html( $is_import ? __( 'Undo import', 'block-theme-ops' ) : __( 'Undo reset', 'block-theme-ops' ) ); ?></button>
 								</form>
 							<?php else : ?>
 								<p class="bto-blocked" data-reason="<?php echo esc_attr( $blocker ); ?>">
@@ -606,6 +773,401 @@ final class DriftPage implements Service {
 				<?php endforeach; ?>
 			</tbody>
 		</table>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Prints the Import tab: the upload form, or the preview of an uploaded zip.
+	 *
+	 * @param string $token Token of an uploaded zip, empty for the upload form.
+	 */
+	private function render_import( string $token ): void {
+		if ( ! current_user_can( Importer::capability() ) ) {
+			echo '<p>' . esc_html__( 'You are not allowed to import.', 'block-theme-ops' ) . '</p>';
+			return;
+		}
+
+		$payload = '' !== $token ? $this->importer->stashed( $token ) : null;
+		if ( '' !== $token && null === $payload ) {
+			echo '<div class="notice notice-error inline"><p>' . esc_html__( 'That upload has expired or does not exist. Upload the zip again.', 'block-theme-ops' ) . '</p></div>';
+		}
+
+		if ( null === $payload ) {
+			$this->render_upload();
+			return;
+		}
+
+		$this->render_review( $token, $this->importer->plan( $payload ) );
+	}
+
+	/**
+	 * Prints the upload form.
+	 */
+	private function render_upload(): void {
+		$limits = Importer::limits();
+		?>
+		<p class="axle-intro bto-intro"><?php esc_html_e( 'Move the template and style changes made on one site, such as staging, to this one. Upload the zip from Download zip, check what would change, then choose what to import. Nothing changes until you press Import, and one Undo puts everything back.', 'block-theme-ops' ); ?></p>
+		<section class="axle-card">
+			<h2 class="axle-card__title"><?php esc_html_e( 'Upload a zip', 'block-theme-ops' ); ?></h2>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" class="bto-form bto-upload" data-bto-busy="<?php esc_attr_e( 'Reading the zip.', 'block-theme-ops' ); ?>">
+				<?php $this->hidden( 'import_upload', 0, array( 'tab' => 'import' ) ); ?>
+				<p>
+					<label for="bto-zip"><?php esc_html_e( 'Zip file', 'block-theme-ops' ); ?></label><br>
+					<input type="file" id="bto-zip" name="zip" accept=".zip,application/zip" required aria-describedby="bto-zip-help">
+				</p>
+				<p class="description" id="bto-zip-help">
+					<?php
+					/* translators: 1: largest file in the zip, 2: most files in the zip. */
+					echo esc_html( sprintf( __( 'The zip Download zip makes, or any zip laid out like the theme: templates/*.html, parts/*.html and theme.json. Files up to %1$s each and %2$d files at most. Nothing in the zip is run.', 'block-theme-ops' ), size_format( $limits['file'] ), $limits['files'] ) );
+					?>
+				</p>
+				<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Upload and preview', 'block-theme-ops' ); ?></button></p>
+			</form>
+		</section>
+		<?php
+	}
+
+	/**
+	 * Prints what an uploaded zip would change.
+	 *
+	 * @param string $token Token of the stashed zip.
+	 * @param array  $plan  From Importer::plan().
+	 */
+	private function render_review( string $token, array $plan ): void {
+		$status  = $plan['theme_status'];
+		$entries = $plan['entries'];
+		$notes   = $plan['notes'];
+		$usable  = array_filter(
+			$entries,
+			static function ( array $entry ): bool {
+				return in_array( $entry['status'], array( Importer::NEW, Importer::CHANGED ), true );
+			}
+		);
+		$can_run = Importer::THEME_OTHER !== $status && $usable;
+		$tone    = array(
+			Importer::NEW         => 'info',
+			Importer::CHANGED     => 'warning',
+			Importer::IDENTICAL   => 'good',
+			Importer::OTHER_THEME => 'error',
+		);
+		$labels  = array(
+			Importer::NEW         => __( 'New', 'block-theme-ops' ),
+			Importer::CHANGED     => __( 'Changed', 'block-theme-ops' ),
+			Importer::IDENTICAL   => __( 'Identical', 'block-theme-ops' ),
+			Importer::OTHER_THEME => __( 'Not for this theme', 'block-theme-ops' ),
+		);
+		$indent  = str_repeat( "\u{00A0}", 4 );
+		?>
+		<p class="axle-intro bto-intro">
+			<?php
+			if ( '' !== $plan['theme'] ) {
+				/* translators: 1: theme folder name in the zip, 2: active theme folder name. */
+				echo esc_html( sprintf( __( 'This zip is for the theme %1$s. The active theme is %2$s.', 'block-theme-ops' ), $plan['theme'], $plan['stylesheet'] ) );
+			} else {
+				esc_html_e( 'This zip does not say which theme it is for, so it is read as the active theme.', 'block-theme-ops' );
+			}
+			?>
+		</p>
+
+		<?php if ( Importer::THEME_OTHER === $status ) : ?>
+			<div class="notice notice-error inline bto-theme-other"><p><?php esc_html_e( 'These are not the files of this theme, so nothing can be imported. Export from a site that runs the same theme, or from its child or parent theme.', 'block-theme-ops' ); ?></p></div>
+		<?php endif; ?>
+
+		<?php if ( $notes['site_url'] ) : ?>
+			<section class="axle-card bto-note">
+				<h2 class="axle-card__title"><?php esc_html_e( 'Site address', 'block-theme-ops' ); ?></h2>
+				<p><?php esc_html_e( 'Addresses of the other site in the markup are rewritten to this site.', 'block-theme-ops' ); ?></p>
+				<div class="axle-diff">
+					<del><span class="screen-reader-text"><?php esc_html_e( 'Before:', 'block-theme-ops' ); ?></span> <?php echo esc_html( $notes['site_url'][0] ); ?></del>
+					<ins><span class="screen-reader-text"><?php esc_html_e( 'After:', 'block-theme-ops' ); ?></span> <?php echo esc_html( $notes['site_url'][1] ); ?></ins>
+				</div>
+			</section>
+		<?php endif; ?>
+
+		<?php if ( $notes['navigation'] ) : ?>
+			<div class="notice notice-warning inline bto-note-navigation">
+				<p><?php esc_html_e( 'These navigation menus do not exist on this site. Navigation blocks that used them will show this site\'s default menu. Create them with the same slug and upload the zip again to link them.', 'block-theme-ops' ); ?></p>
+				<ul class="bto-list">
+				<?php
+				foreach ( $notes['navigation'] as $menu ) :
+					?>
+					<li><code dir="ltr"><?php echo esc_html( $menu ); ?></code></li><?php endforeach; ?></ul>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( $notes['media'] ) : ?>
+			<div class="notice notice-warning inline bto-note-media">
+				<p><?php esc_html_e( 'These files are not in this site\'s Media Library. The blocks keep the address but are not linked to a Media Library item. Upload the files to the same folder and upload the zip again to link them.', 'block-theme-ops' ); ?></p>
+				<ul class="bto-list">
+				<?php
+				foreach ( $notes['media'] as $media ) :
+					?>
+					<li><code dir="ltr"><?php echo esc_html( $media ); ?></code></li><?php endforeach; ?></ul>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( $plan['rejected'] ) : ?>
+			<div class="notice notice-warning inline bto-note-rejected">
+				<p><?php esc_html_e( 'These files in the zip were skipped:', 'block-theme-ops' ); ?></p>
+				<ul class="bto-list">
+				<?php
+				foreach ( $plan['rejected'] as $name => $reason ) :
+					?>
+					<li><code dir="ltr"><?php echo esc_html( (string) $name ); ?></code> <?php echo esc_html( (string) $reason ); ?></li><?php endforeach; ?></ul>
+			</div>
+		<?php endif; ?>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-review" data-bto-confirm-import_apply="<?php esc_attr_e( 'Import {count} selected item(s)? Each one it overwrites is backed up first. You can undo the whole import from the Backups tab for 30 days.', 'block-theme-ops' ); ?>" data-bto-busy="<?php esc_attr_e( 'Importing.', 'block-theme-ops' ); ?>">
+			<?php $this->hidden( 'import_apply', 0, array( 'tab' => 'import' ) ); ?>
+			<input type="hidden" name="token" value="<?php echo esc_attr( $token ); ?>">
+
+			<?php if ( Importer::THEME_RELATED === $status ) : ?>
+				<p class="bto-confirm-theme">
+					<input type="checkbox" id="bto-confirm-theme" name="confirm_theme" value="1">
+					<label for="bto-confirm-theme">
+						<?php
+						/* translators: 1: theme in the zip, 2: active theme. */
+						echo esc_html( sprintf( __( 'The theme %1$s and the active theme, %2$s, are a child theme and its parent. Import the changes anyway.', 'block-theme-ops' ), $plan['theme'], $plan['stylesheet'] ) );
+						?>
+					</label>
+				</p>
+			<?php endif; ?>
+
+			<div class="axle-scroll" tabindex="0" role="region" aria-label="<?php esc_attr_e( 'What the zip would change', 'block-theme-ops' ); ?>">
+			<table class="wp-list-table widefat fixed striped bto-import-table">
+				<thead>
+					<tr>
+						<td class="manage-column column-cb check-column"><span class="screen-reader-text"><?php esc_html_e( 'Import', 'block-theme-ops' ); ?></span></td>
+						<th scope="col" class="column-primary"><?php esc_html_e( 'Item', 'block-theme-ops' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'In the zip', 'block-theme-ops' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'On this site', 'block-theme-ops' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $entries as $entry ) : ?>
+						<?php
+						$selectable = in_array( $entry['status'], array( Importer::NEW, Importer::CHANGED ), true ) && Importer::THEME_OTHER !== $status;
+						$overwrite  = Importer::CHANGED === $entry['status'] && $entry['customized'];
+						$ticked     = $selectable && ! $overwrite;
+						$id         = 'bto-import-' . sanitize_html_class( str_replace( '/', '-', $entry['key'] ) );
+						?>
+						<tr class="bto-import-row bto-import-row--<?php echo esc_attr( $entry['status'] ); ?>" data-key="<?php echo esc_attr( $entry['key'] ); ?>">
+							<th scope="row" class="check-column">
+								<label class="screen-reader-text" for="<?php echo esc_attr( $id ); ?>">
+									<?php
+									/* translators: %s: item name. */
+									echo esc_html( sprintf( __( 'Import %s', 'block-theme-ops' ), $entry['title'] ) );
+									?>
+								</label>
+								<input type="checkbox" name="keys[]" id="<?php echo esc_attr( $id ); ?>" value="<?php echo esc_attr( $entry['key'] ); ?>" <?php checked( $ticked ); ?> <?php disabled( ! $selectable ); ?>>
+							</th>
+							<td class="column-primary">
+								<strong><?php echo esc_html( $entry['title'] ); ?></strong>
+								<span class="bto-type"><?php echo esc_html( $entry['type_label'] ); ?> &middot; <code dir="ltr"><?php echo esc_html( $entry['key'] ); ?></code></span>
+							</td>
+							<td>
+								<span class="axle-badge axle-badge--<?php echo esc_attr( $tone[ $entry['status'] ] ?? 'neutral' ); ?> bto-badge bto-badge--<?php echo esc_attr( $entry['status'] ); ?>"><?php echo esc_html( $labels[ $entry['status'] ] ?? $entry['status'] ); ?></span>
+							</td>
+							<td>
+								<?php if ( $overwrite ) : ?>
+									<span class="axle-badge axle-badge--warning bto-badge bto-badge--overwrites"><?php esc_html_e( 'Overwrites a change made here', 'block-theme-ops' ); ?></span>
+									<span class="axle-muted bto-muted"><?php esc_html_e( 'Not ticked. Tick it to replace this site\'s version.', 'block-theme-ops' ); ?></span>
+								<?php elseif ( null !== $entry['live'] && Importer::IDENTICAL !== $entry['status'] ) : ?>
+									<span class="axle-muted bto-muted"><?php esc_html_e( 'The theme file, no Site Editor change.', 'block-theme-ops' ); ?></span>
+								<?php elseif ( Importer::IDENTICAL === $entry['status'] ) : ?>
+									<span class="axle-muted bto-muted"><?php esc_html_e( 'The same as here. Nothing to import.', 'block-theme-ops' ); ?></span>
+								<?php else : ?>
+									<span class="axle-muted bto-muted"><?php esc_html_e( 'Nothing yet.', 'block-theme-ops' ); ?></span>
+								<?php endif; ?>
+								<?php if ( $selectable || Importer::IDENTICAL === $entry['status'] ) : ?>
+									<?php $this->import_preview( $entry, $indent ); ?>
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			</div>
+
+			<p class="submit bto-review-actions">
+				<?php if ( $can_run ) : ?>
+					<button type="submit" class="button button-primary bto-import-go"><?php esc_html_e( 'Import selected items', 'block-theme-ops' ); ?></button>
+				<?php endif; ?>
+				<button type="submit" name="task" value="import_discard" class="button" formnovalidate><?php esc_html_e( 'Discard this upload', 'block-theme-ops' ); ?></button>
+			</p>
+		</form>
+		<?php
+	}
+
+	/**
+	 * Prints the diff of an item in the preview, folded away.
+	 *
+	 * @param array  $entry  Plan entry.
+	 * @param string $indent One level of indentation for the diff.
+	 */
+	private function import_preview( array $entry, string $indent ): void {
+		$pretty   = static function ( string $type, ?string $text ) use ( $indent ): ?string {
+			if ( null === $text ) {
+				return null;
+			}
+
+			return Themes::GLOBAL_STYLES === $type ? str_replace( "\t", $indent, $text ) : Markup::pretty( $text, $indent );
+		};
+		$incoming = (string) $pretty( $entry['type'], (string) $entry['content'] );
+		$live     = $pretty( $entry['type'], $entry['live'] );
+		$theme    = $pretty( $entry['type'], $entry['theme_file'] );
+		$left     = null !== $live ? $live : $theme;
+		?>
+		<details class="bto-import-diff">
+			<summary><?php esc_html_e( 'Show changes', 'block-theme-ops' ); ?></summary>
+			<?php
+			if ( null === $left ) {
+				echo '<pre class="bto-code" dir="ltr">' . esc_html( $incoming ) . '</pre>';
+			} else {
+				$this->render_diff_table( $left, $incoming, null !== $live ? __( 'On this site now', 'block-theme-ops' ) : __( 'Theme file', 'block-theme-ops' ), __( 'In the zip', 'block-theme-ops' ) );
+				if ( $entry['customized'] && null !== $theme && Importer::CHANGED === $entry['status'] ) {
+					echo '<p class="axle-muted bto-muted">' . esc_html__( 'Three-way view: this site\'s version above also differs from its theme file. The theme file compared with the zip:', 'block-theme-ops' ) . '</p>';
+					$this->render_diff_table( $theme, $incoming, __( 'Theme file', 'block-theme-ops' ), __( 'In the zip', 'block-theme-ops' ) );
+				}
+			}
+			?>
+		</details>
+		<?php
+	}
+
+	/**
+	 * Prints a line diff table, or a note when there is no difference.
+	 *
+	 * @param string $left        Left text.
+	 * @param string $right       Right text.
+	 * @param string $left_title  Left title.
+	 * @param string $right_title Right title.
+	 */
+	private function render_diff_table( string $left, string $right, string $left_title, string $right_title ): void {
+		$diff = wp_text_diff(
+			$left,
+			$right,
+			array(
+				'title_left'      => $left_title,
+				'title_right'     => $right_title,
+				'show_split_view' => true,
+			)
+		);
+
+		if ( '' === $diff ) {
+			echo '<p class="axle-muted bto-muted">' . esc_html__( 'No differences.', 'block-theme-ops' ) . '</p>';
+			return;
+		}
+
+		echo '<div class="axle-scroll bto-diff bto-diff__table" dir="ltr" tabindex="0" role="region" aria-label="' . esc_attr( $left_title . ' / ' . $right_title ) . '">' . wp_kses_post( $diff ) . '</div>';
+	}
+
+	/**
+	 * Prints the Locks tab.
+	 */
+	private function render_locks(): void {
+		$locks  = $this->locks->get();
+		$items  = $this->locks->theme_items();
+		$can    = current_user_can( Locks::capability() );
+		$env    = function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production';
+		$status = array();
+		foreach ( $this->drift->items() as $item ) {
+			$status[ $item['key'] ] = $item;
+		}
+		?>
+		<p class="axle-intro bto-intro"><?php esc_html_e( 'Stop Site Editor changes to templates that are deployed from your theme repository. A locked item cannot be saved from the Site Editor or the REST API: the save is refused with a message, and the Site Editor shows a notice when someone opens it. Reset, import and Undo on this screen still work.', 'block-theme-ops' ); ?></p>
+
+		<p class="bto-lock-state">
+			<?php if ( $this->locks->enforced() ) : ?>
+				<span class="axle-badge axle-badge--good bto-badge"><?php esc_html_e( 'Enforced here', 'block-theme-ops' ); ?></span>
+				<?php
+				/* translators: %s: environment type such as production. */
+				echo esc_html( sprintf( __( 'This site is a %s environment, so locked items are refused.', 'block-theme-ops' ), $env ) );
+				?>
+			<?php else : ?>
+				<span class="axle-badge axle-badge--neutral bto-badge"><?php esc_html_e( 'Not enforced here', 'block-theme-ops' ); ?></span>
+				<?php
+				/* translators: %s: environment type such as local. */
+				echo esc_html( sprintf( __( 'This site is a %s environment. Locks are saved, but saves are not refused here.', 'block-theme-ops' ), $env ) );
+				?>
+			<?php endif; ?>
+		</p>
+
+		<?php if ( ! $items ) : ?>
+			<div class="axle-empty bto-empty">
+				<p><strong><?php esc_html_e( 'The active theme has no templates, parts or theme.json to lock.', 'block-theme-ops' ); ?></strong></p>
+				<p><?php esc_html_e( 'Locks apply to things that come from the theme files. Activate a block theme and they show up here.', 'block-theme-ops' ); ?></p>
+			</div>
+			<?php
+			return;
+		endif;
+		?>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-locks" data-bto-busy="<?php esc_attr_e( 'Saving the locks.', 'block-theme-ops' ); ?>">
+			<?php $this->hidden( 'save_locks', 0, array( 'tab' => 'locks' ) ); ?>
+			<section class="axle-card">
+				<h2 class="axle-card__title"><?php esc_html_e( 'What is locked', 'block-theme-ops' ); ?></h2>
+				<p>
+					<input type="checkbox" id="bto-lock-all" name="lock_all" value="1" <?php checked( $locks['all'] ); ?> <?php disabled( ! $can ); ?>>
+					<label for="bto-lock-all"><strong><?php esc_html_e( 'Everything that comes from the theme', 'block-theme-ops' ); ?></strong></label>
+				</p>
+				<p class="description"><?php esc_html_e( 'Covers every template, template part and the global styles that have a theme file, now and after a deploy adds more. Templates made only in the Site Editor stay open.', 'block-theme-ops' ); ?></p>
+				<fieldset>
+					<legend class="screen-reader-text"><?php esc_html_e( 'Environments where locks are enforced', 'block-theme-ops' ); ?></legend>
+					<p><strong><?php esc_html_e( 'Enforce on', 'block-theme-ops' ); ?></strong></p>
+					<?php foreach ( Locks::ENVIRONMENTS as $type ) : ?>
+						<label class="bto-env"><input type="checkbox" name="environments[]" value="<?php echo esc_attr( $type ); ?>" <?php checked( in_array( $type, $locks['environments'], true ) ); ?> <?php disabled( ! $can ); ?>> <?php echo esc_html( $type ); ?></label>
+					<?php endforeach; ?>
+					<p class="description"><?php esc_html_e( 'The environment type comes from WP_ENVIRONMENT_TYPE in wp-config.php. Production only is the default.', 'block-theme-ops' ); ?></p>
+				</fieldset>
+			</section>
+
+			<div class="axle-scroll" tabindex="0" role="region" aria-label="<?php esc_attr_e( 'Items that can be locked', 'block-theme-ops' ); ?>">
+			<table class="wp-list-table widefat fixed striped bto-locks-table">
+				<thead>
+					<tr>
+						<td class="manage-column column-cb check-column"><span class="screen-reader-text"><?php esc_html_e( 'Locked', 'block-theme-ops' ); ?></span></td>
+						<th scope="col" class="column-primary"><?php esc_html_e( 'Item', 'block-theme-ops' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Theme file', 'block-theme-ops' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Site Editor copy', 'block-theme-ops' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $items as $item ) : ?>
+						<?php $id = 'bto-lock-' . sanitize_html_class( str_replace( '/', '-', $item['key'] ) ); ?>
+						<tr data-key="<?php echo esc_attr( $item['key'] ); ?>">
+							<th scope="row" class="check-column">
+								<label class="screen-reader-text" for="<?php echo esc_attr( $id ); ?>">
+									<?php
+									/* translators: %s: item name. */
+									echo esc_html( sprintf( __( 'Lock %s', 'block-theme-ops' ), $item['title'] ) );
+									?>
+								</label>
+								<input type="checkbox" name="lock_items[]" id="<?php echo esc_attr( $id ); ?>" value="<?php echo esc_attr( $item['key'] ); ?>" <?php checked( in_array( $item['key'], $locks['items'], true ) || $locks['all'] ); ?> <?php disabled( ! $can || $locks['all'] ); ?>>
+							</th>
+							<td class="column-primary">
+								<strong><?php echo esc_html( $item['title'] ); ?></strong>
+								<span class="bto-type"><?php echo esc_html( Drift::type_label( $item['type'] ) ); ?> &middot; <code dir="ltr"><?php echo esc_html( $item['key'] ); ?></code></span>
+							</td>
+							<td><code dir="ltr"><?php echo esc_html( $item['file'] ); ?></code></td>
+							<td>
+								<?php if ( isset( $status[ $item['key'] ] ) ) : ?>
+									<?php $this->badge( $status[ $item['key'] ] ); ?>
+								<?php else : ?>
+									<span class="axle-muted bto-muted"><?php esc_html_e( 'None. The theme file is used.', 'block-theme-ops' ); ?></span>
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			</div>
+			<p class="description"><?php esc_html_e( 'A lock stops new saves. It does not remove a copy that was saved before: reset it on the Drift tab.', 'block-theme-ops' ); ?></p>
+			<?php if ( $can ) : ?>
+				<p class="submit"><button type="submit" class="button button-primary"><?php esc_html_e( 'Save locks', 'block-theme-ops' ); ?></button></p>
+			<?php endif; ?>
+		</form>
 		<?php
 	}
 
@@ -672,10 +1234,12 @@ final class DriftPage implements Service {
 								);
 								?>
 							</p>
+						<?php elseif ( ! Settings::can_encrypt() && 'option' !== $source ) : ?>
+							<p class="axle-muted bto-token-status"><?php esc_html_e( 'This server cannot encrypt a token, so none is stored. Define BLOCK_THEME_OPS_GITHUB_TOKEN in wp-config.php instead.', 'block-theme-ops' ); ?></p>
 						<?php else : ?>
 							<input type="password" id="bto-token" name="token" class="regular-text code" value="" autocomplete="new-password" placeholder="<?php echo 'option' === $source ? esc_attr__( 'Saved. Type a new one to replace it.', 'block-theme-ops' ) : 'github_pat_...'; ?>">
 							<?php if ( 'option' === $source ) : ?>
-								<p class="axle-muted bto-token-status"><?php esc_html_e( 'A token is saved. It is never shown again.', 'block-theme-ops' ); ?></p>
+								<p class="axle-muted bto-token-status"><?php esc_html_e( 'A token is saved, encrypted. It is never shown again.', 'block-theme-ops' ); ?></p>
 								<label><input type="checkbox" name="remove_token" value="1"> <?php esc_html_e( 'Remove the saved token', 'block-theme-ops' ); ?></label>
 							<?php endif; ?>
 							<p class="description"><?php esc_html_e( 'A fine-grained token for this one repository, with read and write access to Contents and Pull requests. Better: define BLOCK_THEME_OPS_GITHUB_TOKEN in wp-config.php, so the token is not stored in the database.', 'block-theme-ops' ); ?></p>
@@ -736,6 +1300,20 @@ final class DriftPage implements Service {
 			case 'undo':
 				$this->handle_undo( $id, $back );
 				break;
+			case 'import_upload':
+				$this->handle_upload();
+				break;
+			case 'import_apply':
+				$this->handle_import();
+				break;
+			case 'import_discard':
+				$token = isset( $_POST['token'] ) ? sanitize_key( wp_unslash( $_POST['token'] ) ) : '';
+				$this->importer->forget( $token );
+				$this->done( 'success', __( 'Upload discarded. Nothing was changed.', 'block-theme-ops' ), array( 'tab' => 'import' ) );
+				break;
+			case 'save_locks':
+				$this->handle_locks();
+				break;
 			case 'save_settings':
 				$this->handle_settings( $back );
 				break;
@@ -766,6 +1344,14 @@ final class DriftPage implements Service {
 		if ( ! $items ) {
 			$this->done( 'error', __( 'Select at least one item.', 'block-theme-ops' ), $back );
 			return;
+		}
+		foreach ( $items as $item ) {
+			// The capability of the screen is not enough: each post has its own.
+			if ( ! current_user_can( 'edit_post', (int) $item['id'] ) ) {
+				/* translators: %s: item name. */
+				$this->done( 'error', sprintf( __( 'You are not allowed to change %s. Nothing was changed.', 'block-theme-ops' ), $item['title'] ), $back );
+				return;
+			}
 		}
 
 		if ( 'export' === $task ) {
@@ -842,7 +1428,7 @@ final class DriftPage implements Service {
 	 * @param array $back Where to go afterwards.
 	 */
 	private function handle_reset_identical( array $back ): void {
-		$result = $this->operations->reset_identical();
+		$result = $this->operations->reset_identical( array( Abilities::class, 'can_touch' ) );
 		$count  = count( $result['reset'] );
 		if ( $result['failed'] ) {
 			/* translators: %d: number of items. */
@@ -855,20 +1441,171 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Undoes a reset.
+	 * Undoes a reset or an import.
 	 *
 	 * @param int   $backup_id Backup ID.
 	 * @param array $back      Where to go afterwards.
 	 */
 	private function handle_undo( int $backup_id, array $back ): void {
 		unset( $back['item'] );
-		$result = $this->operations->undo( $backup_id );
+		$result = $this->operations->undo_change( $backup_id );
 		if ( is_wp_error( $result ) ) {
 			$this->done( 'error', $result->get_error_message(), $back );
 			return;
 		}
 
-		$this->done( 'success', __( 'Reset undone. The database copy is back.', 'block-theme-ops' ), array( 'item' => $result ) );
+		if ( 'import' === $result['kind'] ) {
+			$message = sprintf(
+				/* translators: %d: number of items. */
+				_n( 'Import undone. %d item is back as it was.', 'Import undone. %d items are back as they were.', count( $result['undone'] ), 'block-theme-ops' ),
+				count( $result['undone'] )
+			);
+			if ( $result['skipped'] ) {
+				$list = array();
+				foreach ( $result['skipped'] as $key => $reason ) {
+					$list[] = $key . ': ' . $reason;
+				}
+				/* translators: %s: list of items and reasons. */
+				$message .= ' ' . sprintf( __( 'Left alone: %s', 'block-theme-ops' ), implode( ' ', $list ) );
+			}
+			$this->done( $result['skipped'] ? 'warning' : 'success', $message, array() );
+			return;
+		}
+
+		$this->done( 'success', __( 'Reset undone. The database copy is back.', 'block-theme-ops' ), array( 'item' => $result['post_id'] ) );
+	}
+
+	/**
+	 * Reads an uploaded zip and shows its preview.
+	 */
+	private function handle_upload(): void {
+		$back = array( 'tab' => 'import' );
+		if ( ! current_user_can( Importer::capability() ) ) {
+			wp_die( esc_html__( 'You are not allowed to import.', 'block-theme-ops' ), 403 );
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Checked in handle(). Only the error code and the temporary path are read, and the zip is parsed, never run.
+		$file = isset( $_FILES['zip'] ) && is_array( $_FILES['zip'] ) ? $_FILES['zip'] : array();
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+		$error = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
+		$tmp   = isset( $file['tmp_name'] ) && is_string( $file['tmp_name'] ) ? $file['tmp_name'] : '';
+
+		if ( UPLOAD_ERR_NO_FILE === $error || '' === $tmp ) {
+			$this->done( 'error', __( 'Choose a zip file first.', 'block-theme-ops' ), $back );
+			return;
+		}
+		if ( UPLOAD_ERR_OK !== $error || ! is_uploaded_file( $tmp ) ) {
+			/* translators: %s: largest upload size. */
+			$this->done( 'error', sprintf( __( 'The upload failed. This server accepts files up to %s. Try again, or ask your host to raise the limit.', 'block-theme-ops' ), size_format( wp_max_upload_size() ) ), $back );
+			return;
+		}
+
+		$payload = $this->importer->read_zip( $tmp );
+		if ( is_wp_error( $payload ) ) {
+			$this->done( 'error', $payload->get_error_message(), $back );
+			return;
+		}
+
+		$token = $this->importer->stash( $payload );
+		$this->done( 'success', __( 'Zip read. Nothing has changed yet: choose what to import.', 'block-theme-ops' ), array_merge( $back, array( 'review' => $token ) ) );
+	}
+
+	/**
+	 * Imports the items chosen in the preview.
+	 */
+	private function handle_import(): void {
+		if ( ! current_user_can( Importer::capability() ) ) {
+			wp_die( esc_html__( 'You are not allowed to import.', 'block-theme-ops' ), 403 );
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Checked in handle().
+		$token = isset( $_POST['token'] ) ? sanitize_key( wp_unslash( $_POST['token'] ) ) : '';
+		$keys  = isset( $_POST['keys'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['keys'] ) ) : array();
+		$theme = ! empty( $_POST['confirm_theme'] );
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		$payload = $this->importer->stashed( $token );
+		$back    = array(
+			'tab'    => 'import',
+			'review' => $token,
+		); // phpcs:ignore Universal.WhiteSpace.PrecisionAlignment -- Short inline array.
+		if ( null === $payload ) {
+			$this->done( 'error', __( 'That upload has expired. Upload the zip again.', 'block-theme-ops' ), array( 'tab' => 'import' ) );
+			return;
+		}
+		if ( ! $keys ) {
+			$this->done( 'error', __( 'Choose at least one item to import.', 'block-theme-ops' ), $back );
+			return;
+		}
+
+		$result = $this->importer->apply(
+			$payload,
+			$keys,
+			array(
+				'confirm_theme' => $theme,
+				'check_caps'    => true,
+			)
+		);
+		if ( is_wp_error( $result ) ) {
+			$this->done( 'error', $result->get_error_message(), $back );
+			return;
+		}
+
+		$this->importer->forget( $token );
+		$count   = count( $result['created'] ) + count( $result['updated'] );
+		$message = sprintf(
+			/* translators: 1: number of items, 2: number created, 3: number changed. */
+			_n( '%1$d item imported (%2$d new, %3$d changed). A backup is kept.', '%1$d items imported (%2$d new, %3$d changed). A backup is kept.', $count, 'block-theme-ops' ),
+			$count,
+			count( $result['created'] ),
+			count( $result['updated'] )
+		);
+		$type = 'success';
+		if ( $result['notes']['navigation'] || $result['notes']['media'] ) {
+			$type     = 'warning';
+			$message .= ' ' . sprintf(
+				/* translators: 1: number of navigation menus, 2: number of media files. */
+				__( 'Not on this site: %1$d navigation menu(s) and %2$d media file(s). Upload the zip again after adding them to link them.', 'block-theme-ops' ),
+				count( $result['notes']['navigation'] ),
+				count( $result['notes']['media'] )
+			);
+		}
+
+		$this->done( $type, $message, array(), array( 'undo' => $result['backup'] ) );
+	}
+
+	/**
+	 * Saves the locks.
+	 */
+	private function handle_locks(): void {
+		$back = array( 'tab' => 'locks' );
+		if ( ! current_user_can( Locks::capability() ) ) {
+			wp_die( esc_html__( 'You are not allowed to change the locks.', 'block-theme-ops' ), 403 );
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Checked in handle().
+		$all   = ! empty( $_POST['lock_all'] );
+		$items = isset( $_POST['lock_items'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['lock_items'] ) ) : array();
+		$envs  = isset( $_POST['environments'] ) ? array_map( 'sanitize_key', (array) wp_unslash( $_POST['environments'] ) ) : array();
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		$saved = $this->locks->get();
+		$this->locks->update(
+			array(
+				'all'          => $all,
+				// With "everything" ticked the single boxes are disabled and not sent: keep what was chosen before.
+				'items'        => $all ? $saved['items'] : $items,
+				'environments' => $envs,
+			)
+		);
+
+		$now = $this->locks->get();
+		if ( ! $now['environments'] ) {
+			$this->done( 'warning', __( 'Locks saved, but no environment is ticked, so nothing is refused anywhere.', 'block-theme-ops' ), $back );
+			return;
+		}
+
+		$this->done( 'success', __( 'Locks saved.', 'block-theme-ops' ), $back );
 	}
 
 	/**
@@ -918,7 +1655,7 @@ final class DriftPage implements Service {
 	 */
 	private function download( array $items, array $back ): void {
 		$files = $this->exporter->files( $items, 'zip' );
-		$zip   = $this->exporter->zip( $files );
+		$zip   = $this->exporter->zip( $files, $items );
 		if ( is_wp_error( $zip ) ) {
 			$this->done( 'error', $zip->get_error_message(), $back );
 			return;
@@ -939,7 +1676,7 @@ final class DriftPage implements Service {
 	/**
 	 * Stores the result for the next screen and redirects there.
 	 *
-	 * @param string $type    success or error.
+	 * @param string $type    success, warning or error.
 	 * @param string $message Message.
 	 * @param array  $back    Query arguments of the screen to go back to.
 	 * @param array  $extra   undo (backup ID), url (pull request) or settings (link to the Settings tab).
@@ -968,9 +1705,9 @@ final class DriftPage implements Service {
 		}
 		delete_transient( self::notice_key() );
 
-		$type = 'error' === ( $notice['type'] ?? '' ) ? 'error' : 'success';
+		$type = in_array( $notice['type'] ?? '', array( 'error', 'warning' ), true ) ? (string) $notice['type'] : 'success';
 		?>
-		<div class="notice notice-<?php echo esc_attr( $type ); ?> is-dismissible bto-notice">
+		<div class="notice notice-<?php echo esc_attr( $type ); ?> is-dismissible bto-notice" data-bto-speak="<?php echo esc_attr( (string) $notice['message'] ); ?>">
 			<p>
 				<?php echo esc_html( (string) $notice['message'] ); ?>
 				<?php if ( ! empty( $notice['url'] ) ) : ?>
@@ -1021,17 +1758,17 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Prints the confirmation messages admin.js shows before a reset or a pull request.
+	 * Prints the confirmation messages admin.js shows in place before a reset or a pull request.
 	 */
 	private function confirm_attributes(): void {
 		$target = $this->exporter->provider()->target();
 		printf(
 			'data-bto-confirm-reset="%s" data-bto-confirm-pr="%s"',
-			esc_attr__( 'Reset to the theme file? The database copy is backed up first, and you can undo this from the Backups tab.', 'block-theme-ops' ),
+			esc_attr__( 'Reset to the theme file? The database copy is deleted and the site uses the theme file again. A backup is kept, and you can undo this for 30 days from the Backups tab.', 'block-theme-ops' ),
 			esc_attr(
 				'' !== $target
 					/* translators: %s: repository and branch. */
-					? sprintf( __( 'Open a pull request on %s with these changes?', 'block-theme-ops' ), $target )
+					? sprintf( __( 'Open a pull request on %s with these changes? This sends the exported files to GitHub. It cannot be undone from here, but nothing is merged.', 'block-theme-ops' ), $target )
 					: ''
 			)
 		);
@@ -1074,6 +1811,9 @@ final class DriftPage implements Service {
 		}
 		if ( $item['kept'] ) {
 			echo ' <span class="axle-badge axle-badge--neutral bto-badge bto-badge--kept">' . esc_html__( 'Kept', 'block-theme-ops' ) . '</span>';
+		}
+		if ( $this->locks->is_locked( (string) $item['type'], (string) $item['slug'] ) ) {
+			echo ' <span class="axle-badge axle-badge--info bto-badge bto-badge--locked" title="' . esc_attr__( 'Saves from the Site Editor are refused on the environments you chose.', 'block-theme-ops' ) . '">' . esc_html__( 'Locked', 'block-theme-ops' ) . '</span>';
 		}
 	}
 
@@ -1138,12 +1878,32 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Date and time in the site's format.
+	 * The tags and attributes AxleUi::relative_time() prints.
 	 *
-	 * @param int $time Unix time.
+	 * @return array
+	 */
+	public static function time_tags(): array {
+		return array(
+			'time' => array(
+				'class'    => true,
+				'datetime' => true,
+				'title'    => true,
+			),
+			'span' => array( 'class' => true ),
+		);
+	}
+
+	/**
+	 * What to ask before resetting every identical item.
+	 *
+	 * @param int $count Number of items.
 	 * @return string
 	 */
-	public static function date( int $time ): string {
-		return $time ? (string) wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $time ) : '';
+	private function reset_identical_message( int $count ): string {
+		return sprintf(
+			/* translators: %d: number of items. */
+			_n( 'Reset %d item that matches its theme file? Nothing changes on the site. The database copy is backed up first and you can undo this for 30 days.', 'Reset all %d items that match their theme files? Nothing changes on the site. The database copies are backed up first and you can undo this for 30 days.', $count, 'block-theme-ops' ),
+			$count
+		);
 	}
 }

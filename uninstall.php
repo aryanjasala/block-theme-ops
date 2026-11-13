@@ -15,11 +15,17 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 function block_theme_ops_uninstall_site(): void {
 	delete_option( 'block_theme_ops_settings' );
 	delete_option( 'block_theme_ops_alerts' );
+	delete_option( 'block_theme_ops_locks' );
 	wp_clear_scheduled_hook( 'block_theme_ops_check' );
 
 	foreach ( array( '_block_theme_ops_snapshot', '_block_theme_ops_kept', '_block_theme_ops_editor', '_block_theme_ops_notified' ) as $block_theme_ops_key ) {
 		delete_post_meta_by_key( $block_theme_ops_key );
 	}
+
+	// Uploaded zips waiting for a review, and notices waiting to be shown.
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-off cleanup on uninstall; transients have no API to list by prefix.
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s", $wpdb->esc_like( '_transient_block_theme_ops_' ) . '%', $wpdb->esc_like( '_transient_timeout_block_theme_ops_' ) . '%' ) );
 
 	// Backups, a batch at a time. Their meta goes with them.
 	do {

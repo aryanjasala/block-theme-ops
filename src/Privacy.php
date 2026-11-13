@@ -36,7 +36,7 @@ final class Privacy implements Service {
 
 		wp_add_privacy_policy_content(
 			__( 'Block Theme Ops', 'block-theme-ops' ),
-			'<p>' . esc_html__( 'When a template, template part or the global styles are saved in the Site Editor, Block Theme Ops records the user ID of the person who saved them. When one is reset to the theme file, a backup keeps that user ID and the ID of the person who reset it, for 30 days by default, so the reset can be undone.', 'block-theme-ops' ) . '</p>'
+			'<p>' . esc_html__( 'When a template, template part or the global styles are saved in the Site Editor, Block Theme Ops records the user ID of the person who saved them. When one is reset to the theme file, or changed by an import from a zip, a backup keeps that user ID and the ID of the person who reset or imported it, for 30 days by default, so it can be undone.', 'block-theme-ops' ) . '</p>'
 			. '<p>' . esc_html__( 'If an administrator opens a GitHub pull request from Theme Drift, the exported template files and the display names of the people who last edited them are sent to GitHub.', 'block-theme-ops' ) . '</p>'
 		);
 	}
@@ -103,7 +103,7 @@ final class Privacy implements Service {
 			);
 			if ( Backups::POST_TYPE === $post->post_type ) {
 				$fields[] = array(
-					'name'  => __( 'Reset by this person', 'block-theme-ops' ),
+					'name'  => __( 'Reset or imported by this person', 'block-theme-ops' ),
 					'value' => (int) get_post_meta( $id, Backups::RESET_BY, true ) === (int) $user->ID ? __( 'Yes', 'block-theme-ops' ) : __( 'No', 'block-theme-ops' ),
 				);
 				$fields[] = array(

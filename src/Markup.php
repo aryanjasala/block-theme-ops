@@ -172,6 +172,78 @@ final class Markup {
 	}
 
 	/**
+	 * Calls a function for every block delimiter that has attributes, and
+	 * rewrites the delimiter when the function returns new attributes.
+	 * Everything else stays byte for byte.
+	 *
+	 * @param string   $markup   Block markup.
+	 * @param callable $callback Called with the block name (`core/image`) and its attributes.
+	 *                           Returns the new attributes, or null to leave the block alone.
+	 * @return string
+	 */
+	public static function map_blocks( string $markup, callable $callback ): string {
+		return (string) preg_replace_callback(
+			self::DELIMITER,
+			static function ( array $found ) use ( $callback ): string {
+				if ( ! empty( $found['closer'] ) || ! isset( $found['attrs'] ) || '' === trim( $found['attrs'] ) ) {
+					return $found[0];
+				}
+
+				$attrs = json_decode( trim( $found['attrs'] ), true );
+				if ( ! is_array( $attrs ) ) {
+					return $found[0];
+				}
+
+				$name = ( '' !== $found['namespace'] ? $found['namespace'] : 'core/' ) . $found['name'];
+				$new  = $callback( $name, $attrs );
+				if ( ! is_array( $new ) || $new === $attrs ) {
+					return $found[0];
+				}
+
+				$prefix = '' !== $found['namespace'] ? $found['namespace'] : '';
+				$void   = ! empty( $found['void'] ) ? '/' : '';
+
+				return $new
+					? '<!-- wp:' . $prefix . $found['name'] . ' ' . self::encode_attrs( $new ) . ' ' . $void . '-->'
+					: '<!-- wp:' . $prefix . $found['name'] . ' ' . $void . '-->';
+			},
+			$markup
+		);
+	}
+
+	/**
+	 * Why markup cannot be imported as a template, or an empty string when it can.
+	 * Block markup only: no PHP tags, every block closed, no loose HTML or text between top-level blocks.
+	 *
+	 * @param string $markup Template markup.
+	 * @return string Reason, empty when fine.
+	 */
+	public static function problem( string $markup ): string {
+		if ( false !== strpos( $markup, "\0" ) || ! preg_match( '//u', $markup ) ) {
+			return __( 'It is not UTF-8 text.', 'block-theme-ops' );
+		}
+		if ( preg_match( '/<\?/', $markup ) ) {
+			return __( 'It contains a PHP tag. Templates are block markup only.', 'block-theme-ops' );
+		}
+
+		$depth = 0;
+		foreach ( self::tokens( $markup ) as $token ) {
+			if ( 'open' === $token['type'] ) {
+				++$depth;
+			} elseif ( 'close' === $token['type'] ) {
+				--$depth;
+				if ( $depth < 0 ) {
+					return __( 'A block is closed that was never opened.', 'block-theme-ops' );
+				}
+			} elseif ( 'html' === $token['type'] && 0 === $depth && '' !== trim( (string) $token['html'] ) ) {
+				return __( 'It has content outside of blocks.', 'block-theme-ops' );
+			}
+		}
+
+		return 0 === $depth ? '' : __( 'A block is never closed.', 'block-theme-ops' );
+	}
+
+	/**
 	 * Hash of a template file that ignores whitespace, so reformatting a file
 	 * does not count as a change.
 	 *

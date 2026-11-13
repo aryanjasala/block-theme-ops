@@ -128,6 +128,59 @@ class Backups implements Service {
 	}
 
 	/**
+	 * Saves a backup of everything an import wrote, so one Undo can put it all back.
+	 *
+	 * @param string  $theme   Theme the import was for.
+	 * @param array[] $records What each written item looked like before and after: key, post_type, post_id, action, before, after.
+	 * @return int|\WP_Error Backup ID.
+	 */
+	public function create_import( string $theme, array $records ) {
+		$data = array(
+			'kind'      => 'import',
+			'post_type' => 'import',
+			'slug'      => '',
+			'title'     => sprintf(
+				/* translators: %d: number of items. */
+				_n( 'Import of %d item', 'Import of %d items', count( $records ), 'block-theme-ops' ),
+				count( $records )
+			),
+			'theme'     => $theme,
+			'records'   => $records,
+			'item'      => array(
+				'key'    => 'import',
+				'title'  => sprintf(
+					/* translators: %d: number of items. */
+					_n( 'Import of %d item', 'Import of %d items', count( $records ), 'block-theme-ops' ),
+					count( $records )
+				),
+				'status' => '',
+				'file'   => '',
+			),
+			'reset_at'  => time(),
+		);
+
+		$id = wp_insert_post(
+			wp_slash(
+				array(
+					'post_type'   => self::POST_TYPE,
+					'post_status' => 'private',
+					'post_title'  => $data['title'],
+					'post_author' => get_current_user_id(),
+					'meta_input'  => array(
+						self::DATA_META   => $data,
+						self::RESET_BY    => get_current_user_id(),
+						self::AUTHOR_META => 0,
+						self::UNDO_UNTIL  => time() + self::days() * DAY_IN_SECONDS,
+					),
+				)
+			),
+			true
+		);
+
+		return is_wp_error( $id ) ? $id : (int) $id;
+	}
+
+	/**
 	 * One backup.
 	 *
 	 * @param int $id Backup ID.

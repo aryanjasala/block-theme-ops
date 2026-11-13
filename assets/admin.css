@@ -22,8 +22,48 @@
 }
 
 .bto-identical {
-	float: right;
-	margin: 6px 0 0;
+	margin: 0;
+}
+
+.bto-toolbar {
+	margin-top: 8px;
+}
+
+.bto-confirm-slot:empty {
+	display: none;
+}
+
+.bto-list {
+	margin: 4px 0 8px 20px;
+	list-style: disc;
+}
+
+.bto-env {
+	display: inline-block;
+	margin-right: 16px;
+}
+
+.bto-lock-state {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.bto-import-diff {
+	margin-top: 8px;
+}
+
+.bto-import-diff summary {
+	cursor: pointer;
+}
+
+.bto-review-actions .button {
+	margin-right: 8px;
+}
+
+.bto-spinner {
+	margin: 0 4px;
 }
 
 .bto-table .column-primary {
@@ -94,7 +134,7 @@
 .bto-diff table.diff th {
 	padding: 6px 10px;
 	background: var(--axle-neutral-bg);
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	font-family: inherit;
 	text-align: left;
 }
 
@@ -114,12 +154,12 @@
 }
 
 .bto-diff table.diff del {
-	background: color-mix(in srgb, var(--axle-error-line) 35%, #fff);
+	background: color-mix(in srgb, var(--axle-error-line) 20%, transparent);
 	text-decoration: none;
 }
 
 .bto-diff table.diff ins {
-	background: color-mix(in srgb, var(--axle-good-line) 35%, #fff);
+	background: color-mix(in srgb, var(--axle-good-line) 20%, transparent);
 	text-decoration: none;
 }
 

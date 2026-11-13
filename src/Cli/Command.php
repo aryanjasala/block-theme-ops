@@ -13,6 +13,8 @@ use AryanX\Axle\BlockThemeOps\Checker;
 use AryanX\Axle\BlockThemeOps\Diff;
 use AryanX\Axle\BlockThemeOps\Drift;
 use AryanX\Axle\BlockThemeOps\Exporter;
+use AryanX\Axle\BlockThemeOps\Importer;
+use AryanX\Axle\BlockThemeOps\Locks;
 use AryanX\Axle\BlockThemeOps\Operations;
 
 defined( 'ABSPATH' ) || exit;
@@ -58,6 +60,20 @@ final class Command {
 	private Checker $checker;
 
 	/**
+	 * Import.
+	 *
+	 * @var Importer
+	 */
+	private Importer $importer;
+
+	/**
+	 * Locks.
+	 *
+	 * @var Locks
+	 */
+	private Locks $locks;
+
+	/**
 	 * Sets up the command.
 	 *
 	 * @param Drift      $drift      Inventory.
@@ -65,13 +81,17 @@ final class Command {
 	 * @param Exporter   $exporter   Export.
 	 * @param Backups    $backups    Backups.
 	 * @param Checker    $checker    Drift checks.
+	 * @param Importer   $importer   Import.
+	 * @param Locks      $locks      Locks.
 	 */
-	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Checker $checker ) {
+	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Checker $checker, Importer $importer, Locks $locks ) {
 		$this->drift      = $drift;
 		$this->operations = $operations;
 		$this->exporter   = $exporter;
 		$this->backups    = $backups;
 		$this->checker    = $checker;
+		$this->importer   = $importer;
+		$this->locks      = $locks;
 	}
 
 	/**
@@ -240,7 +260,7 @@ final class Command {
 	}
 
 	/**
-	 * Undoes a reset from its backup.
+	 * Undoes a reset or an import from its backup.
 	 *
 	 * ## OPTIONS
 	 *
@@ -250,12 +270,233 @@ final class Command {
 	 * @param array $args Positional arguments.
 	 */
 	public function undo( array $args ): void {
-		$result = $this->operations->undo( (int) $args[0] );
+		$result = $this->operations->undo_change( (int) $args[0] );
 		if ( is_wp_error( $result ) ) {
 			\WP_CLI::error( $result->get_error_message() );
 		}
 
-		\WP_CLI::success( sprintf( 'Restored as post %d.', $result ) );
+		foreach ( $result['skipped'] as $key => $reason ) {
+			\WP_CLI::warning( $key . ': ' . $reason );
+		}
+		if ( 'import' === $result['kind'] ) {
+			\WP_CLI::success( sprintf( 'Import undone: %s.', implode( ', ', $result['undone'] ) ) );
+			return;
+		}
+
+		\WP_CLI::success( sprintf( 'Restored as post %d.', $result['post_id'] ) );
+	}
+
+	/**
+	 * Imports Site Editor changes from a zip made by `export --zip` (or a zip laid out like the theme).
+	 *
+	 * Shows what would change first. Everything it overwrites is backed up, and one `undo` brings it back.
+	 * Navigation menus are mapped by slug, the site address is rewritten, and media this site lacks is listed.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <zip>
+	 * : Path of the zip.
+	 *
+	 * [--dry-run]
+	 * : Show what would change and write nothing.
+	 *
+	 * [--only=<items>]
+	 * : Comma-separated item keys to import, such as parts/header,styles. Default: every new or changed item.
+	 *
+	 * [--confirm-theme]
+	 * : Import a zip made for a child or parent of the active theme.
+	 *
+	 * [--yes]
+	 * : Do not ask before writing.
+	 *
+	 * [--format=<format>]
+	 * : Format of the preview: table, csv, json, yaml or count.
+	 * ---
+	 * default: table
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp block-theme-ops import staging-changes.zip --dry-run
+	 *     wp block-theme-ops import staging-changes.zip --only=parts/header --yes
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Named arguments.
+	 */
+	public function import( array $args, array $assoc_args ): void {
+		$payload = $this->importer->read_zip( (string) $args[0] );
+		if ( is_wp_error( $payload ) ) {
+			\WP_CLI::error( $payload->get_error_message() );
+		}
+
+		$only = array_values( array_filter( array_map( 'trim', explode( ',', (string) ( $assoc_args['only'] ?? '' ) ) ) ) );
+		$plan = $this->importer->plan( $payload );
+
+		foreach ( $plan['rejected'] as $name => $reason ) {
+			\WP_CLI::warning( sprintf( 'Skipped %s: %s', $name, $reason ) );
+		}
+		foreach ( $plan['notes']['navigation'] as $menu ) {
+			\WP_CLI::warning( sprintf( 'Navigation menu %s does not exist here. Its blocks use the default menu.', $menu ) );
+		}
+		foreach ( $plan['notes']['media'] as $media ) {
+			\WP_CLI::warning( sprintf( 'Media not on this site: %s', $media ) );
+		}
+		if ( $plan['notes']['site_url'] ) {
+			\WP_CLI::log( sprintf( 'Site address rewritten: %s to %s', $plan['notes']['site_url'][0], $plan['notes']['site_url'][1] ) );
+		}
+
+		$rows = array();
+		foreach ( $plan['entries'] as $entry ) {
+			if ( $only && ! in_array( $entry['key'], $only, true ) ) {
+				continue;
+			}
+			$rows[] = array(
+				'key'        => $entry['key'],
+				'status'     => $entry['status'],
+				'customized' => $entry['customized'] ? 'yes' : 'no',
+			);
+		}
+		$this->print_rows( $rows, (string) ( $assoc_args['format'] ?? 'table' ), array( 'key', 'status', 'customized' ) );
+
+		if ( ! empty( $assoc_args['dry-run'] ) ) {
+			\WP_CLI::success( 'Dry run. Nothing was changed.' );
+			return;
+		}
+
+		$todo = count(
+			array_filter(
+				$rows,
+				static function ( array $row ): bool {
+					return in_array( $row['status'], array( Importer::NEW, Importer::CHANGED ), true );
+				} 
+			) 
+		);
+		if ( ! $todo ) {
+			\WP_CLI::success( 'Nothing to import: everything is the same here.' );
+			return;
+		}
+
+		\WP_CLI::confirm( sprintf( 'Import %d item(s)? Each one it overwrites is backed up first.', $todo ), $assoc_args );
+		$result = $this->importer->apply( $payload, $only, array( 'confirm_theme' => ! empty( $assoc_args['confirm-theme'] ) ) );
+		if ( is_wp_error( $result ) ) {
+			\WP_CLI::error( $result->get_error_message() );
+		}
+
+		\WP_CLI::success( sprintf( 'Imported %d item(s). Undo with: wp block-theme-ops undo %d', count( $result['created'] ) + count( $result['updated'] ), $result['backup'] ) );
+	}
+
+	/**
+	 * Lists the locks.
+	 *
+	 * Locked items cannot be saved from the Site Editor or the REST API on the environments where locks are enforced.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--format=<format>]
+	 * : table, csv, json, yaml or count.
+	 * ---
+	 * default: table
+	 * ---
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Named arguments.
+	 */
+	public function locks( array $args, array $assoc_args ): void {
+		$rows = array();
+		foreach ( $this->locks->theme_items() as $item ) {
+			$rows[] = array(
+				'key'    => $item['key'],
+				'locked' => $this->locks->is_locked( $item['type'], $item['slug'] ) ? 'yes' : 'no',
+				'file'   => $item['file'],
+			);
+		}
+
+		\WP_CLI::log( sprintf( 'Enforced on this site (%s): %s', function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production', $this->locks->enforced() ? 'yes' : 'no' ) );
+		$this->print_rows( $rows, (string) ( $assoc_args['format'] ?? 'table' ), array( 'key', 'locked', 'file' ) );
+	}
+
+	/**
+	 * Locks items against Site Editor saves.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [<item>...]
+	 * : Item keys: templates/<slug>, parts/<slug> or styles.
+	 *
+	 * [--all]
+	 * : Lock everything that comes from the theme files.
+	 *
+	 * [--environments=<types>]
+	 * : Comma-separated environment types where locks are enforced: production, staging, development, local.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp block-theme-ops lock parts/header parts/footer
+	 *     wp block-theme-ops lock --all --environments=production,staging
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Named arguments.
+	 */
+	public function lock( array $args, array $assoc_args ): void {
+		$this->change_locks( $args, $assoc_args, true );
+	}
+
+	/**
+	 * Unlocks items.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [<item>...]
+	 * : Item keys: templates/<slug>, parts/<slug> or styles.
+	 *
+	 * [--all]
+	 * : Remove the lock on everything that comes from the theme files. Locks on single items stay.
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Named arguments.
+	 */
+	public function unlock( array $args, array $assoc_args ): void {
+		$this->change_locks( $args, $assoc_args, false );
+	}
+
+	/**
+	 * Locks or unlocks, then says what is locked.
+	 *
+	 * @param array $args       Item keys.
+	 * @param array $assoc_args Named arguments.
+	 * @param bool  $locked     True to lock.
+	 */
+	private function change_locks( array $args, array $assoc_args, bool $locked ): void {
+		if ( ! $args && empty( $assoc_args['all'] ) && empty( $assoc_args['environments'] ) ) {
+			\WP_CLI::error( 'Name at least one item, or use --all.' );
+		}
+
+		$bad = array_filter(
+			$args,
+			static function ( string $key ): bool {
+				return ! preg_match( '#^(styles|(templates|parts)/[A-Za-z0-9_%.-]+)$#', $key );
+			}
+		);
+		if ( $bad ) {
+			\WP_CLI::error( 'Not an item key: ' . implode( ', ', $bad ) . '. Use templates/<slug>, parts/<slug> or styles.' );
+		}
+
+		if ( $args ) {
+			$this->locks->set_items( $args, $locked );
+		}
+		$changes = array();
+		if ( ! empty( $assoc_args['all'] ) ) {
+			$changes['all'] = $locked;
+		}
+		if ( ! empty( $assoc_args['environments'] ) ) {
+			$changes['environments'] = array_map( 'trim', explode( ',', (string) $assoc_args['environments'] ) );
+		}
+		if ( $changes ) {
+			$this->locks->update( $changes );
+		}
+
+		$now = $this->locks->get();
+		\WP_CLI::success( sprintf( 'Locked: %s%s. Enforced on: %s.', $now['all'] ? 'everything from the theme' : ( $now['items'] ? implode( ', ', $now['items'] ) : 'nothing' ), $now['all'] && $now['items'] ? ', ' . implode( ', ', $now['items'] ) : '', implode( ', ', $this->locks->environments() ) ) );
 	}
 
 	/**
@@ -278,6 +519,7 @@ final class Command {
 				return array(
 					'id'         => $backup['id'],
 					'key'        => (string) ( $backup['item']['key'] ?? $backup['slug'] ),
+					'kind'       => (string) ( $backup['kind'] ?? 'reset' ),
 					'theme'      => $backup['theme'],
 					'reset_at'   => gmdate( 'Y-m-d H:i:s', (int) $backup['reset_at'] ),
 					'reset_by'   => Drift::user_name( (int) $backup['reset_by'] ),
@@ -287,7 +529,7 @@ final class Command {
 			$this->backups->all( 100 )
 		);
 
-		$this->print_rows( $rows, (string) ( $assoc_args['format'] ?? 'table' ), array( 'id', 'key', 'theme', 'reset_at', 'reset_by', 'undo_until' ) );
+		$this->print_rows( $rows, (string) ( $assoc_args['format'] ?? 'table' ), array( 'id', 'key', 'kind', 'theme', 'reset_at', 'reset_by', 'undo_until' ) );
 	}
 
 	/**
@@ -368,7 +610,7 @@ final class Command {
 		$files = $this->exporter->files( $items, 'cli' );
 
 		if ( ! empty( $assoc_args['zip'] ) ) {
-			$zip = $this->exporter->zip( $files );
+			$zip = $this->exporter->zip( $files, $items );
 			if ( is_wp_error( $zip ) ) {
 				\WP_CLI::error( $zip->get_error_message() );
 			}

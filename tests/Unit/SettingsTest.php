@@ -66,4 +66,43 @@ final class SettingsTest extends TestCase {
 		putenv( Settings::TOKEN_NAME . '=from-env' );
 		$this->assertSame( array( 'from-env', 'environment' ), array( $settings->token(), $settings->token_source() ) );
 	}
+
+	public function test_a_saved_token_is_encrypted_in_the_option_and_read_back(): void {
+		$settings = new Settings();
+		$settings->update( array( 'token' => 'github_pat_secret123' ) );
+
+		$stored = $this->options[ Settings::OPTION ]['token'];
+		$this->assertStringStartsWith( 'enc1:', $stored );
+		$this->assertStringNotContainsString( 'secret123', json_encode( $this->options ) );
+		$this->assertSame( 'github_pat_secret123', $settings->token() );
+		$this->assertSame( 'option', $settings->token_source() );
+
+		// Saving something else keeps the token, encrypted again with a new nonce.
+		$settings->update( array( 'repo' => 'acme/site' ) );
+		$this->assertSame( 'github_pat_secret123', $settings->token() );
+		$this->assertNotSame( $stored, $this->options[ Settings::OPTION ]['token'] );
+	}
+
+	public function test_a_token_saved_in_plain_text_by_an_earlier_version_still_works_and_gets_encrypted(): void {
+		$this->options[ Settings::OPTION ] = array( 'token' => 'old-plain-token' );
+		$settings                          = new Settings();
+
+		$this->assertSame( 'old-plain-token', $settings->token() );
+		$settings->protect_token();
+
+		$this->assertStringStartsWith( 'enc1:', $this->options[ Settings::OPTION ]['token'] );
+		$this->assertSame( 'old-plain-token', $settings->token() );
+
+		$before = $this->options[ Settings::OPTION ]['token'];
+		$settings->protect_token();
+		$this->assertSame( $before, $this->options[ Settings::OPTION ]['token'], 'Nothing is written when it is encrypted already.' );
+	}
+
+	public function test_a_token_that_cannot_be_decrypted_reads_as_empty(): void {
+		$this->options[ Settings::OPTION ] = array( 'token' => 'enc1:sAAAA' );
+		$this->assertSame( '', ( new Settings() )->token() );
+
+		$this->options[ Settings::OPTION ] = array( 'token' => 'enc1:s!!notbase64' );
+		$this->assertSame( '', ( new Settings() )->token() );
+	}
 }

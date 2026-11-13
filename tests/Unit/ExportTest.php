@@ -217,4 +217,34 @@ final class ExportTest extends PluginTestCase {
 		Filters\expectApplied( 'block_theme_ops_git_provider' )->once()->andReturn( 'not a provider' );
 		$this->assertInstanceOf( GitHub::class, $exporter->provider() );
 	}
+
+	public function test_the_zip_carries_a_manifest_for_navigation_media_the_address_and_part_areas(): void {
+		Functions\when( 'wp_tempnam' )->alias( fn( $name ) => tempnam( sys_get_temp_dir(), 'bto' ) );
+		Functions\when( 'wp_json_encode' )->alias( fn( $data, $flags = 0 ) => json_encode( $data, $flags ) );
+		Functions\when( 'untrailingslashit' )->alias( fn( $s ) => rtrim( $s, '/' ) );
+		Functions\when( 'wp_get_attachment_url' )->alias( fn( $id ) => 5 === $id ? 'https://bakery.test/wp-content/uploads/logo.png' : false );
+		$this->add_post( 12, 'wp_navigation', 'main-menu', '' );
+		$this->terms[7]['wp_template_part_area'] = array( 'header' );
+
+		$markup = '<!-- wp:navigation {"ref":12} /--><!-- wp:image {"id":5} --><figure><img/></figure><!-- /wp:image --><!-- wp:image {"id":6} --><figure><img/></figure><!-- /wp:image -->';
+		$item   = array(
+			'id'   => 7,
+			'type' => Themes::TEMPLATE_PART,
+			'slug' => 'header',
+		);
+		$path   = $this->exporter()->zip( array( 'parts/header.html' => $markup ), array( $item ) );
+
+		$zip = new \ZipArchive();
+		$zip->open( $path );
+		$this->assertSame( $markup, $zip->getFromName( 'corner-bakery/parts/header.html' ) );
+		$manifest = json_decode( (string) $zip->getFromName( 'corner-bakery/block-theme-ops.json' ), true );
+		$zip->close();
+		unlink( $path );
+
+		$this->assertSame( 'corner-bakery', $manifest['theme'] );
+		$this->assertSame( 'https://bakery.test', $manifest['site_url'] );
+		$this->assertSame( array( '12' => 'main-menu' ), $manifest['navigation'] );
+		$this->assertSame( array( '5' => 'https://bakery.test/wp-content/uploads/logo.png' ), $manifest['media'], 'An attachment that does not exist is left out.' );
+		$this->assertSame( array( 'header' => 'header' ), $manifest['areas'] );
+	}
 }

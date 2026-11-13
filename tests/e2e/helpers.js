@@ -5,7 +5,7 @@ const { wp, wpEval } = require( './utils' );
 const THEME = 'corner-bakery';
 const PAGE = '/wp-admin/themes.php?page=block-theme-ops';
 const MOCK_URL = 'http://wp/wp-content/plugins/block-theme-ops/tests/e2e/fixtures/github-mock.php';
-const OPTIONS = [ 'block_theme_ops_settings', 'block_theme_ops_alerts', 'bto_e2e_mail' ];
+const OPTIONS = [ 'block_theme_ops_settings', 'block_theme_ops_alerts', 'block_theme_ops_locks', 'bto_e2e_mail' ];
 
 /**
  * Copies the fixture theme into wp-content/themes, fresh, and activates it.
@@ -44,6 +44,8 @@ function resetState() {
 			delete_option( $option );
 		}
 		delete_transient( 'block_theme_ops_notice_1' );
+		global $wpdb;
+		$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_block\\_theme\\_ops\\_import\\_%' OR option_name LIKE '\\_transient\\_timeout\\_block\\_theme\\_ops\\_import\\_%'" );
 		wp_clear_scheduled_hook( 'block_theme_ops_check' );
 		@unlink( WP_CONTENT_DIR . '/bto-github-mock.json' );
 		@unlink( WP_CONTENT_DIR . '/mu-plugins/bto-e2e.php' );

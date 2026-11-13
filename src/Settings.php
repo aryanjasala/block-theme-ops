@@ -13,12 +13,20 @@ defined( 'ABSPATH' ) || exit;
  * Reads and writes the plugin's settings option: the email alert and the
  * GitHub repository. The token is never shown again once saved, and the
  * BLOCK_THEME_OPS_GITHUB_TOKEN constant or environment variable wins over it.
+ * A saved token is encrypted with a key made from the site's salts, so a
+ * copy of the database alone does not give it away. It is never returned by
+ * the REST API or abilities.
  */
 class Settings {
 
 	public const OPTION = 'block_theme_ops_settings';
 
 	public const TOKEN_NAME = 'BLOCK_THEME_OPS_GITHUB_TOKEN';
+
+	/**
+	 * Prefix of a stored token that is encrypted.
+	 */
+	private const ENCRYPTED = 'enc1:';
 
 	private const DEFAULTS = array(
 		'notify' => false,
@@ -42,7 +50,7 @@ class Settings {
 			'repo'   => (string) $all['repo'],
 			'branch' => '' !== (string) $all['branch'] ? (string) $all['branch'] : 'main',
 			'path'   => (string) $all['path'],
-			'token'  => (string) $all['token'],
+			'token'  => self::decrypt( (string) $all['token'] ),
 		);
 	}
 
@@ -84,7 +92,33 @@ class Settings {
 			}
 		}
 
+		if ( '' !== $all['token'] ) {
+			// With no way to encrypt it, the token is not stored: use the constant instead.
+			$all['token'] = self::can_encrypt() ? self::encrypt( $all['token'] ) : '';
+		}
+
 		update_option( self::OPTION, $all, false );
+	}
+
+	/**
+	 * Encrypts a token saved in plain text by an earlier version. Runs on admin_init, and only writes when there is something to change.
+	 */
+	public function protect_token(): void {
+		$saved = get_option( self::OPTION, array() );
+		if ( ! is_array( $saved ) || empty( $saved['token'] ) || 0 === strpos( (string) $saved['token'], self::ENCRYPTED ) ) {
+			return;
+		}
+
+		$this->update( array( 'token' => (string) $saved['token'] ) );
+	}
+
+	/**
+	 * Whether this server can encrypt a token to store it.
+	 *
+	 * @return bool
+	 */
+	public static function can_encrypt(): bool {
+		return function_exists( 'sodium_crypto_secretbox' ) || ( function_exists( 'openssl_encrypt' ) && function_exists( 'random_bytes' ) );
 	}
 
 	/**
@@ -168,5 +202,66 @@ class Settings {
 		}
 
 		return (string) preg_replace( '#/+#', '/', $path );
+	}
+
+	/**
+	 * Encrypts a secret with a key made from the site's salts.
+	 *
+	 * @param string $plain Secret.
+	 * @return string `enc1:` and base64 text.
+	 */
+	private static function encrypt( string $plain ): string {
+		$key = hash( 'sha256', wp_salt( 'auth' ) . self::TOKEN_NAME, true );
+
+		if ( function_exists( 'sodium_crypto_secretbox' ) ) {
+			$nonce = random_bytes( SODIUM_CRYPTO_SECRETBOX_NONCEBYTES );
+
+			return self::ENCRYPTED . 's' . base64_encode( $nonce . sodium_crypto_secretbox( $plain, $nonce, $key ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Binary to text, not obfuscation.
+		}
+
+		$iv     = random_bytes( 16 );
+		$cipher = (string) openssl_encrypt( $plain, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv );
+		$mac    = hash_hmac( 'sha256', $iv . $cipher, $key, true );
+
+		return self::ENCRYPTED . 'o' . base64_encode( $mac . $iv . $cipher ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Binary to text, not obfuscation.
+	}
+
+	/**
+	 * Reads a stored token. Text without the prefix is a token saved in plain text by an earlier version.
+	 *
+	 * @param string $stored Stored value.
+	 * @return string Empty when it cannot be decrypted, for example after the salts changed.
+	 */
+	private static function decrypt( string $stored ): string {
+		if ( 0 !== strpos( $stored, self::ENCRYPTED ) ) {
+			return $stored;
+		}
+
+		$mode = substr( $stored, strlen( self::ENCRYPTED ), 1 );
+		$raw  = base64_decode( substr( $stored, strlen( self::ENCRYPTED ) + 1 ), true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Binary from text, not obfuscation.
+		$key  = hash( 'sha256', wp_salt( 'auth' ) . self::TOKEN_NAME, true );
+		if ( false === $raw ) {
+			return '';
+		}
+
+		if ( 's' === $mode && function_exists( 'sodium_crypto_secretbox_open' ) && strlen( $raw ) > SODIUM_CRYPTO_SECRETBOX_NONCEBYTES ) {
+			$plain = sodium_crypto_secretbox_open( substr( $raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES ), substr( $raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES ), $key );
+
+			return false === $plain ? '' : $plain;
+		}
+
+		if ( 'o' === $mode && function_exists( 'openssl_decrypt' ) && strlen( $raw ) > 48 ) {
+			$mac    = substr( $raw, 0, 32 );
+			$iv     = substr( $raw, 32, 16 );
+			$cipher = substr( $raw, 48 );
+			if ( ! hash_equals( $mac, hash_hmac( 'sha256', $iv . $cipher, $key, true ) ) ) {
+				return '';
+			}
+			$plain = openssl_decrypt( $cipher, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv );
+
+			return false === $plain ? '' : $plain;
+		}
+
+		return '';
 	}
 }

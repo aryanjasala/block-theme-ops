@@ -66,4 +66,35 @@ final class MarkupTest extends TestCase {
 		$this->assertSame( array( '', 'acme/card', 'acme/card', 'core/spacer' ), array_column( $tokens, 'name' ) );
 		$this->assertSame( array( 'a' => 1 ), $tokens[1]['attrs'] );
 	}
+
+	public function test_map_blocks_rewrites_attributes_and_leaves_the_rest_byte_for_byte(): void {
+		$markup = "<!-- wp:image {\"id\":5} -->\n<figure><img/></figure>\n<!-- /wp:image -->\n<!-- wp:site-title /-->\n<!-- wp:navigation {\"ref\":12,\"x\":1} /-->";
+		$seen   = array();
+		$out    = Markup::map_blocks(
+			$markup,
+			static function ( string $name, array $attrs ) use ( &$seen ): ?array {
+				$seen[] = $name;
+				if ( 'core/navigation' === $name ) {
+					unset( $attrs['ref'] );
+					return $attrs;
+				}
+
+				return null;
+			}
+		);
+
+		$this->assertSame( array( 'core/image', 'core/navigation' ), $seen, 'Blocks with no attributes and closers are not offered.' );
+		$this->assertSame( str_replace( '{"ref":12,"x":1}', '{"x":1}', $markup ), $out );
+	}
+
+	public function test_problem_accepts_block_markup_and_names_what_is_wrong_otherwise(): void {
+		$this->assertSame( '', Markup::problem( "<!-- wp:group -->\n<div><!-- wp:site-title /--></div>\n<!-- /wp:group -->\n" ) );
+		$this->assertSame( '', Markup::problem( '' ) );
+		$this->assertStringContainsString( 'PHP', Markup::problem( '<?php echo 1; ?>' ) );
+		$this->assertStringContainsString( 'PHP', Markup::problem( '<!-- wp:group --><div><?= $x ?></div><!-- /wp:group -->' ) );
+		$this->assertStringContainsString( 'outside of blocks', Markup::problem( '<p>loose</p>' ) );
+		$this->assertStringContainsString( 'never closed', Markup::problem( '<!-- wp:group --><div>' ) );
+		$this->assertStringContainsString( 'never opened', Markup::problem( '<!-- /wp:group -->' ) );
+		$this->assertStringContainsString( 'UTF-8', Markup::problem( "<!-- wp:site-title /-->\xff" ) );
+	}
 }

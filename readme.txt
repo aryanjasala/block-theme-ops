@@ -8,7 +8,7 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Find Site Editor changes that override your theme files, see the diff, reset them or send them to Git.
+Find Site Editor changes that override your theme files, see the diff, reset them, send them to Git, move them to another site or lock them.
 
 == Description ==
 
@@ -44,6 +44,26 @@ To tell those apart, Block Theme Ops keeps a snapshot of the theme file every ti
 * **Download a zip** laid out like the theme: `templates/*.html`, `parts/*.html` and a `theme.json` with the style changes merged in.
 * **Open a GitHub pull request** with the changes as one commit on a new branch. The description lists each item, who last edited it and when. Set the repository, base branch and the theme's folder in the repository, and give it a fine-grained token, preferably through the `BLOCK_THEME_OPS_GITHUB_TOKEN` constant in wp-config.php.
 
+= Move changes from staging to production =
+
+Someone approved the new header on staging. Do not rebuild it by hand on the live site.
+
+* On staging, Download zip. On the live site, open the Import tab and upload it. Nothing changes yet.
+* The preview says, for each template, template part and the global styles, whether it is new, changed, identical or for another theme. If the live site has its own change to the same item, it is flagged, left unticked and shown as a second diff.
+* Navigation menus are matched by slug, the staging address is rewritten to the live one, and media that is not in the live Media Library is listed instead of pointing at the wrong file.
+* Choose the items and import. Everything it overwrites is backed up, and one Undo puts it all back for 30 days.
+
+The zip is only read as text. Files with PHP tags, paths that leave the theme folder, symbolic links, anything that is not a template, a template part or theme.json, oversized files and zip bombs are skipped and listed. Nothing in the zip is run.
+
+= Lock templates that belong to Git =
+
+The header is deployed from the theme repository, and someone keeps "fixing" it in the Site Editor. The next deploy is then ignored.
+
+* Lock single templates, template parts or the global styles, or everything that comes from the theme, on the Locks tab.
+* A save from the Site Editor or the REST API is refused with a message that says where to change it, and the Site Editor shows a notice when someone opens a locked item, so nobody types for ten minutes first.
+* Locks apply on production by default, and on the environments you tick. Nobody can override a lock unless a developer allows a capability. Turn the lock off on the Locks tab.
+* Reset, import and Undo here still work.
+
 = Know when a deploy left changes behind =
 
 Right after WordPress updates the active theme, and once a day for deploys through Git, SFTP or rsync, Block Theme Ops compares the theme files. Items that went "theme changed" show in a notice on the Dashboard, Themes, Site Editor and Updates screens, in Site Health, and in an email if you turn that on.
@@ -57,13 +77,17 @@ Right after WordPress updates the active theme, and once a day for deploys throu
 `wp block-theme-ops undo <backup>`
 `wp block-theme-ops keep <item>... [--undo]`
 `wp block-theme-ops export [<item>...] [--zip=<file>] [--pr]`
+`wp block-theme-ops import <zip> [--dry-run] [--only=<items>] [--yes]`
+`wp block-theme-ops lock [<item>...] [--all] [--environments=<types>]`
+`wp block-theme-ops unlock [<item>...] [--all]`
+`wp block-theme-ops locks`
 `wp block-theme-ops check`
 
 `check` exits with 1 when any item is "theme changed", so a deploy script or CI job can stop and tell you.
 
 = For AI agents =
 
-On WordPress 6.9 and later the plugin registers abilities for the drift report, the diff of one item, reset and export, so agents can use them through the MCP adapter.
+On WordPress 6.9 and later the plugin registers abilities for the drift report, the diff of one item, reset, export, import (preview and apply), undo and locks, so agents can use them through the MCP adapter. Each one also checks the capability of the post it touches.
 
 == External services ==
 
@@ -94,7 +118,15 @@ Yes. Templates and parts are looked up in the child theme first and then in the 
 
 = Where should the GitHub token come from? =
 
-Best: `define( 'BLOCK_THEME_OPS_GITHUB_TOKEN', '...' );` in wp-config.php, or an environment variable with the same name. A token saved on the settings screen works too, but it is stored in the database. It is never shown again after you save it. Use a fine-grained token for one repository with read and write access to Contents and Pull requests.
+Best: `define( 'BLOCK_THEME_OPS_GITHUB_TOKEN', '...' );` in wp-config.php, or an environment variable with the same name. A token saved on the settings screen works too. It is stored encrypted in the database and never shown again after you save it. Use a fine-grained token for one repository with read and write access to Contents and Pull requests.
+
+= Does import overwrite what is on the live site? =
+
+Only what you choose, and only after the preview. Items the live site changed too are not ticked for you. Every item it overwrites is backed up first, and Undo restores them all for 30 days.
+
+= Can a locked template still be changed? =
+
+Not in the Site Editor or through the REST API on the environments where locks apply. Change the theme file and deploy it, or turn the lock off on the Locks tab. A lock does not remove a copy that was saved earlier: reset it from the Drift tab.
 
 = Can it open merge requests on GitLab? =
 
@@ -106,6 +138,8 @@ Not yet. The Git host sits behind an interface, and another one can be plugged i
 2. One template part: the database copy against the theme file now, and what the theme changed since the edit.
 3. A pull request opened on GitHub with the selected Site Editor changes.
 4. The notice after a theme update leaves a Site Editor change behind.
+5. The Import tab: what a zip from another site would change, item by item.
+6. The Locks tab: which templates cannot be saved from the Site Editor.
 
 == Changelog ==
 

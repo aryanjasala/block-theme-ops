@@ -109,10 +109,15 @@ class Exporter {
 	/**
 	 * Builds a zip laid out like the theme, inside a folder named after it.
 	 *
+	 * Next to the files goes a small manifest, `block-theme-ops.json`, with what
+	 * differs between sites: the site address, navigation menu slugs, media
+	 * addresses and template part areas. Import reads it to map them.
+	 *
 	 * @param array<string, string> $files Path => contents.
+	 * @param array[]               $items The exported items, for template part areas.
 	 * @return string|\WP_Error Path of a temporary zip file. The caller deletes it.
 	 */
-	public function zip( array $files ) {
+	public function zip( array $files, array $items = array() ) {
 		if ( ! class_exists( 'ZipArchive' ) ) {
 			return new \WP_Error( 'block_theme_ops_no_zip', __( 'This server\'s PHP has no zip support (the ZipArchive class). Ask your host to enable the zip extension.', 'block-theme-ops' ) );
 		}
@@ -133,9 +138,70 @@ class Exporter {
 		foreach ( $files as $file => $contents ) {
 			$zip->addFromString( $folder . '/' . $file, $contents );
 		}
+		$zip->addFromString( $folder . '/' . Importer::MANIFEST, (string) wp_json_encode( $this->manifest( $files, $items ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) . "\n" );
 		$zip->close();
 
 		return $path;
+	}
+
+	/**
+	 * What import needs to know about this site: the address, navigation menus
+	 * and media the markup points at, and the area of each template part.
+	 *
+	 * @param array<string, string> $files Path => contents.
+	 * @param array[]               $items The exported items.
+	 * @return array
+	 */
+	public function manifest( array $files, array $items = array() ): array {
+		$navigation = array();
+		$media      = array();
+		$attrs      = Importer::MEDIA_ATTRS;
+
+
+		foreach ( $files as $path => $contents ) {
+			if ( '.html' !== substr( (string) $path, -5 ) ) {
+				continue;
+			}
+			Markup::map_blocks(
+				(string) $contents,
+				static function ( string $name, array $block ) use ( &$navigation, &$media, $attrs ): ?array {
+					if ( 'core/navigation' === $name && ! empty( $block['ref'] ) ) {
+						$menu = get_post( (int) $block['ref'] );
+						if ( $menu instanceof \WP_Post && '' !== $menu->post_name ) {
+							$navigation[ (int) $block['ref'] ] = (string) $menu->post_name;
+						}
+					} elseif ( isset( $attrs[ $name ], $block[ $attrs[ $name ] ] ) ) {
+						$url = wp_get_attachment_url( (int) $block[ $attrs[ $name ] ] );
+						if ( is_string( $url ) && '' !== $url ) {
+							$media[ (int) $block[ $attrs[ $name ] ] ] = $url;
+						}
+					}
+
+					return null;
+				}
+			);
+		}
+
+		$areas = array();
+		foreach ( $items as $item ) {
+			if ( Themes::TEMPLATE_PART !== ( $item['type'] ?? '' ) ) {
+				continue;
+			}
+			$terms = get_the_terms( (int) $item['id'], 'wp_template_part_area' );
+			if ( is_array( $terms ) && isset( $terms[0]->name ) ) {
+				$areas[ (string) $item['slug'] ] = (string) $terms[0]->name;
+			}
+		}
+
+		return array(
+			'format'     => 1,
+			'theme'      => $this->drift->themes()->stylesheet(),
+			'site_url'   => untrailingslashit( (string) home_url() ),
+			'exported'   => gmdate( 'c' ),
+			'navigation' => $navigation ? $navigation : new \stdClass(),
+			'media'      => $media ? $media : new \stdClass(),
+			'areas'      => $areas ? $areas : new \stdClass(),
+		);
 	}
 
 	/**

@@ -215,4 +215,28 @@ final class OperationsTest extends PluginTestCase {
 		$this->posts[9]->post_content = '{"isGlobalStylesUserThemeJSON":true,"version":3}';
 		$this->assertSame( '', $operations->undo_blocker( $backup ), 'an empty layer is what a reset leaves' );
 	}
+
+	public function test_undo_change_sends_an_import_backup_to_the_importer_and_a_reset_to_undo(): void {
+		list( $operations, $item ) = $this->setup_header();
+		$operations->reset( $item );
+
+		$this->meta[100][ Backups::DATA_META ]['kind'] = 'import';
+		$this->assertSame( 'block_theme_ops_is_import', $operations->undo( 100 )->get_error_code(), 'A reset undo does not take an import.' );
+		$this->assertSame( 'block_theme_ops_no_importer', $operations->undo_change( 100 )->get_error_code() );
+		$this->assertSame( 'block_theme_ops_no_backup', $operations->undo_change( 999 )->get_error_code() );
+
+		unset( $this->meta[100][ Backups::DATA_META ]['kind'] );
+		\WP_Query::$queue[] = array( 'posts' => array() );
+		$result              = $operations->undo_change( 100 );
+		$this->assertSame( array( 'reset', 101 ), array( $result['kind'], $result['post_id'] ) );
+	}
+
+	public function test_identical_items_are_only_reset_when_the_check_allows_it(): void {
+		list( $operations ) = $this->setup_header();
+		$identical          = $this->add_post( 8, Themes::TEMPLATE, 'page', $this->file( 'templates/page.html' ) );
+		\WP_Query::$queue[] = array( 'posts' => array( $identical ) );
+
+		$this->assertSame( array(), $operations->reset_identical( fn( array $item ): bool => false )['reset'] );
+		$this->assertSame( array(), $this->deleted );
+	}
 }

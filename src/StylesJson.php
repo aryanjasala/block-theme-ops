@@ -67,6 +67,42 @@ final class StylesJson {
 	}
 
 	/**
+	 * The user layer that turns a theme.json into a given result: every
+	 * `styles` and `settings` value in the result that the theme does not
+	 * have, or has with another value. Lists are compared whole.
+	 *
+	 * @param array $theme  Decoded theme.json of this site.
+	 * @param array $result Decoded theme.json to arrive at, such as one from an export.
+	 * @return array
+	 */
+	public static function derive( array $theme, array $result ): array {
+		$layer = array();
+		foreach ( self::LAYER_KEYS as $key ) {
+			if ( isset( $result[ $key ] ) && is_array( $result[ $key ] ) ) {
+				$layer[ $key ] = self::differences( isset( $theme[ $key ] ) && is_array( $theme[ $key ] ) ? $theme[ $key ] : array(), $result[ $key ] );
+			}
+		}
+
+		return self::changes( $layer );
+	}
+
+	/**
+	 * Whether two user layers set the same values, in any key order.
+	 *
+	 * @param array $a Decoded user layer.
+	 * @param array $b Decoded user layer.
+	 * @return bool
+	 */
+	public static function same_changes( array $a, array $b ): bool {
+		$a = self::flatten( self::changes( $a ) );
+		$b = self::flatten( self::changes( $b ) );
+		ksort( $a );
+		ksort( $b );
+
+		return $a === $b;
+	}
+
+	/**
 	 * Whether the user layer sets nothing that differs from theme.json.
 	 *
 	 * @param array $theme Decoded theme.json.
@@ -187,6 +223,31 @@ final class StylesJson {
 	 */
 	private static function related( string $a, string $b ): bool {
 		return $a === $b || 0 === strpos( $a, $b . '.' ) || 0 === strpos( $b, $a . '.' );
+	}
+
+	/**
+	 * The values of a branch that differ from the base.
+	 *
+	 * @param array $base   Base branch.
+	 * @param array $result Branch to arrive at.
+	 * @return array
+	 */
+	private static function differences( array $base, array $result ): array {
+		$out = array();
+		foreach ( $result as $key => $value ) {
+			if ( ! array_key_exists( $key, $base ) ) {
+				$out[ $key ] = $value;
+			} elseif ( is_array( $value ) && is_array( $base[ $key ] ) && self::is_object( $value ) && self::is_object( $base[ $key ] ) ) {
+				$inner = self::differences( $base[ $key ], $value );
+				if ( array() !== $inner ) {
+					$out[ $key ] = $inner;
+				}
+			} elseif ( $value !== $base[ $key ] ) {
+				$out[ $key ] = $value;
+			}
+		}
+
+		return $out;
 	}
 
 	/**

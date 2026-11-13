@@ -76,6 +76,20 @@ final class Plugin {
 	private Exporter $exporter;
 
 	/**
+	 * Import.
+	 *
+	 * @var Importer
+	 */
+	private Importer $importer;
+
+	/**
+	 * Locks.
+	 *
+	 * @var Locks
+	 */
+	private Locks $locks;
+
+	/**
 	 * Drift checks.
 	 *
 	 * @var Checker
@@ -111,7 +125,9 @@ final class Plugin {
 		$this->snapshots  = new Snapshots( $themes );
 		$this->backups    = new Backups();
 		$this->alerts     = new Alerts();
-		$this->operations = new Operations( $this->drift, $this->backups, $this->snapshots, $this->alerts );
+		$this->importer   = new Importer( $this->drift, $this->backups, $this->alerts );
+		$this->locks      = new Locks( $themes, $this->settings );
+		$this->operations = new Operations( $this->drift, $this->backups, $this->snapshots, $this->alerts, $this->importer );
 		$this->exporter   = new Exporter( $this->drift, $this->settings );
 		$this->checker    = new Checker( $this->drift, $this->snapshots, $this->backups, $this->alerts, $this->settings );
 	}
@@ -144,6 +160,24 @@ final class Plugin {
 	}
 
 	/**
+	 * Import from a zip, for other plugins.
+	 *
+	 * @return Importer
+	 */
+	public function importer(): Importer {
+		return $this->importer;
+	}
+
+	/**
+	 * Locks, for other plugins.
+	 *
+	 * @return Locks
+	 */
+	public function locks(): Locks {
+		return $this->locks;
+	}
+
+	/**
 	 * Drift checks, for other plugins.
 	 *
 	 * @return Checker
@@ -160,19 +194,22 @@ final class Plugin {
 			$this->snapshots,
 			$this->backups,
 			$this->checker,
-			new DriftPage( $this->drift, $this->operations, $this->exporter, $this->backups, $this->settings, $this->alerts ),
+			$this->locks,
+			new DriftPage( $this->drift, $this->operations, $this->exporter, $this->backups, $this->settings, $this->alerts, $this->importer, $this->locks ),
 			new Notice( $this->drift, $this->alerts ),
-			new SiteHealth( $this->drift ),
+			new SiteHealth( $this->drift, $this->locks ),
 			new Privacy(),
-			new Abilities( $this->drift, $this->operations, $this->exporter ),
+			new Abilities( $this->drift, $this->operations, $this->exporter, $this->importer, $this->locks ),
 		);
+
+		add_action( 'admin_init', array( $this->settings, 'protect_token' ) );
 
 		foreach ( $services as $service ) {
 			$service->register();
 		}
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			\WP_CLI::add_command( 'block-theme-ops', new Command( $this->drift, $this->operations, $this->exporter, $this->backups, $this->checker ) );
+			\WP_CLI::add_command( 'block-theme-ops', new Command( $this->drift, $this->operations, $this->exporter, $this->backups, $this->checker, $this->importer, $this->locks ) );
 		}
 	}
 }
