@@ -54,18 +54,63 @@ class Operations {
 	private Alerts $alerts;
 
 	/**
+	 * Imports, which Undo also brings back.
+	 *
+	 * @var Importer|null
+	 */
+	private ?Importer $importer;
+
+	/**
 	 * Sets up the operations.
 	 *
-	 * @param Drift     $drift     Inventory.
-	 * @param Backups   $backups   Backups.
-	 * @param Snapshots $snapshots Snapshots.
-	 * @param Alerts    $alerts    Pending alerts.
+	 * @param Drift         $drift     Inventory.
+	 * @param Backups       $backups   Backups.
+	 * @param Snapshots     $snapshots Snapshots.
+	 * @param Alerts        $alerts    Pending alerts.
+	 * @param Importer|null $importer  Imports.
 	 */
-	public function __construct( Drift $drift, Backups $backups, Snapshots $snapshots, Alerts $alerts ) {
+	public function __construct( Drift $drift, Backups $backups, Snapshots $snapshots, Alerts $alerts, ?Importer $importer = null ) {
 		$this->drift     = $drift;
 		$this->backups   = $backups;
 		$this->snapshots = $snapshots;
 		$this->alerts    = $alerts;
+		$this->importer  = $importer;
+	}
+
+	/**
+	 * Undoes a reset or an import, whichever the backup is for.
+	 *
+	 * @param int $backup_id Backup ID.
+	 * @return array{kind: string, post_id: int, undone: string[], skipped: array<string, string>}|\WP_Error
+	 */
+	public function undo_change( int $backup_id ) {
+		$backup = $this->backups->get( $backup_id );
+		if ( null === $backup ) {
+			return new \WP_Error( 'block_theme_ops_no_backup', __( 'That backup no longer exists.', 'block-theme-ops' ) );
+		}
+
+		if ( 'import' === ( $backup['kind'] ?? '' ) ) {
+			if ( null === $this->importer ) {
+				return new \WP_Error( 'block_theme_ops_no_importer', __( 'Imports are not available.', 'block-theme-ops' ) );
+			}
+			$result = $this->importer->undo( $backup );
+
+			return is_wp_error( $result ) ? $result : array(
+				'kind'    => 'import',
+				'post_id' => 0,
+				'undone'  => $result['undone'],
+				'skipped' => $result['skipped'],
+			);
+		}
+
+		$post_id = $this->undo( $backup_id );
+
+		return is_wp_error( $post_id ) ? $post_id : array(
+			'kind'    => 'reset',
+			'post_id' => (int) $post_id,
+			'undone'  => array( (string) ( $backup['item']['key'] ?? $backup['slug'] ) ),
+			'skipped' => array(),
+		);
 	}
 
 	/**
@@ -135,15 +180,19 @@ class Operations {
 	/**
 	 * Resets every item whose database copy matches its theme file.
 	 *
+	 * @param callable|null $allowed Called with each item. Return false to leave an item alone, for a capability check on the post.
 	 * @return array{reset: array[], failed: array[]}
 	 */
-	public function reset_identical(): array {
+	public function reset_identical( ?callable $allowed = null ): array {
 		$result = array(
 			'reset'  => array(),
 			'failed' => array(),
 		);
 
 		foreach ( $this->drift->items( array( 'status' => Drift::IDENTICAL ) ) as $item ) {
+			if ( null !== $allowed && ! $allowed( $item ) ) {
+				continue;
+			}
 			$done = $this->reset( $item );
 			if ( is_wp_error( $done ) ) {
 				$result['failed'][] = $item;
@@ -165,6 +214,9 @@ class Operations {
 		$backup = $this->backups->get( $backup_id );
 		if ( null === $backup ) {
 			return new \WP_Error( 'block_theme_ops_no_backup', __( 'That backup no longer exists.', 'block-theme-ops' ) );
+		}
+		if ( 'import' === ( $backup['kind'] ?? '' ) ) {
+			return new \WP_Error( 'block_theme_ops_is_import', __( 'That backup is an import, not a reset. Use Undo on the Backups tab.', 'block-theme-ops' ) );
 		}
 		if ( $backup['undo_until'] <= time() ) {
 			return new \WP_Error( 'block_theme_ops_expired', __( 'This reset is too old to undo.', 'block-theme-ops' ) );
@@ -412,7 +464,7 @@ class Operations {
 	/**
 	 * Clears core's cached global styles after they change.
 	 */
-	private static function clean_styles_cache(): void {
+	public static function clean_styles_cache(): void {
 		if ( class_exists( 'WP_Theme_JSON_Resolver' ) ) {
 			\WP_Theme_JSON_Resolver::clean_cached_data();
 		}

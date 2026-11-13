@@ -15,6 +15,17 @@ const HEADER_DEPLOY = [ '<!-- wp:site-title /-->', '<!-- wp:site-title /-->\n\n\
  */
 const editedHeader = () => themeFile( 'parts/header.html' ).replace( ...HEADER_EDIT );
 
+/**
+ * Goes ahead with the question Theme Drift asks in place before a reset or a pull request.
+ *
+ * @param {import('@playwright/test').Page} page Page.
+ */
+const confirmInline = async ( page ) => {
+	const box = page.locator( '.bto-confirm' );
+	await expect( box ).toBeVisible();
+	await box.getByRole( 'button' ).first().click();
+};
+
 const row = ( page, title ) => page.locator( '.bto-table tbody tr' ).filter( { has: page.getByRole( 'link', { name: title, exact: true } ) } );
 
 test.describe( 'Block Theme Ops', () => {
@@ -82,10 +93,11 @@ test.describe( 'Block Theme Ops', () => {
 		editThemeFile( 'parts/header.html', ...HEADER_DEPLOY );
 
 		await page.goto( `${ PAGE }&item=${ id }` );
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Reset to theme file' } ).click();
+		await confirmInline( page );
 		await expect( page.locator( '.bto-notice' ) ).toContainText( '1 item reset to the theme file. A backup is kept.' );
-		await expect( page.locator( '.bto-table' ) ).not.toContainText( 'Header' );
+		await expect( page.locator( '.bto-table' ) ).toHaveCount( 0 );
+		await expect( page.locator( '.bto-empty' ) ).toContainText( 'Nothing in the database overrides the theme.' );
 
 		expect( wp( 'post', 'list', '--post_type=wp_template_part', '--format=count' ) ).toBe( '0' );
 		expect( wpEval( `echo get_block_template( '${ THEME }//header', 'wp_template_part' )->source;` ) ).toBe( 'theme' );
@@ -111,8 +123,8 @@ test.describe( 'Block Theme Ops', () => {
 
 		await page.goto( PAGE );
 		await row( page, 'Header' ).hover();
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await row( page, 'Header' ).getByRole( 'button', { name: 'Reset' } ).click();
+		await confirmInline( page );
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'reset to the theme file' );
 		expect( wp( 'post', 'list', '--post_type=wp_template_part', '--format=count' ) ).toBe( '0' );
 
@@ -130,7 +142,8 @@ test.describe( 'Block Theme Ops', () => {
 		await row( page, 'Header' ).hover();
 		await row( page, 'Header' ).getByRole( 'button', { name: 'Keep' } ).click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( '1 item kept.' );
-		await expect( page.locator( '.bto-table tbody' ) ).not.toContainText( 'Header' );
+		await expect( page.locator( '.bto-table' ) ).toHaveCount( 0 );
+		await expect( page.locator( '.bto-empty' ) ).toContainText( 'No items with this status.' );
 		await expect( page.locator( '.subsubsub' ) ).toContainText( 'Kept (1)' );
 		expect( wp( 'post', 'meta', 'get', String( id ), '_block_theme_ops_kept' ) ).not.toBe( '' );
 		expect( report()[ 'parts/header' ] ).toBeUndefined();
@@ -157,8 +170,8 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( row( page, 'Landing' ).getByRole( 'button', { name: 'Reset' } ) ).toHaveCount( 0 );
 		expect( report() ).toMatchObject( { 'templates/page': { status: 'identical' }, 'templates/wp-custom-template-landing': { status: 'db-only', file: '' } } );
 
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Reset 1 identical item' } ).click();
+		await confirmInline( page );
 		await expect( page.locator( '.bto-notice' ) ).toContainText( '1 identical item reset. Nothing changes on the site.' );
 		await expect( page.locator( '.bto-table' ) ).not.toContainText( 'Pages' );
 
@@ -185,8 +198,8 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( page.locator( '#bto-diff-reset .diff-addedline' ) ).toContainText( '#f4ecdf' );
 		await expect( page.locator( '#bto-diff-theme .diff-addedline' ) ).toContainText( [ /#ffffff/, /1\.7/ ] );
 
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Reset to theme file' } ).click();
+		await confirmInline( page );
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'reset to the theme file' );
 		const reset = JSON.parse( wp( 'post', 'get', String( id ), '--field=post_content' ) );
 		expect( reset ).toEqual( { version: 3, isGlobalStylesUserThemeJSON: true } );
@@ -213,7 +226,11 @@ test.describe( 'Block Theme Ops', () => {
 		const zip = path.join( fs.mkdtempSync( path.join( os.tmpdir(), 'bto-' ) ), 'export.zip' );
 		await download.saveAs( zip );
 		const listing = execFileSync( 'unzip', [ '-Z1', zip ], { encoding: 'utf8' } ).trim().split( '\n' ).sort();
-		expect( listing ).toEqual( [ `${ THEME }/parts/header.html`, `${ THEME }/templates/index.html`, `${ THEME }/theme.json` ] );
+		expect( listing ).toEqual( [ `${ THEME }/block-theme-ops.json`, `${ THEME }/parts/header.html`, `${ THEME }/templates/index.html`, `${ THEME }/theme.json` ] );
+		// The manifest tells import what differs between sites.
+		const manifest = JSON.parse( execFileSync( 'unzip', [ '-p', zip, `${ THEME }/block-theme-ops.json` ], { encoding: 'utf8' } ) );
+		expect( manifest ).toMatchObject( { format: 1, theme: THEME, areas: { header: 'header' } } );
+		expect( manifest.site_url ).toMatch( /^http/ );
 		const index = execFileSync( 'unzip', [ '-p', zip, `${ THEME }/templates/index.html` ], { encoding: 'utf8' } );
 		expect( index ).toContain( 'Fresh from the oven' );
 		expect( index ).toContain( '<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->' );
@@ -224,7 +241,7 @@ test.describe( 'Block Theme Ops', () => {
 
 		// The same files from WP-CLI, written inside the site.
 		wp( 'block-theme-ops', 'export', '--zip=/tmp/bto-export.zip' );
-		expect( wpEval( "$z = new ZipArchive(); $z->open( '/tmp/bto-export.zip' ); $n = array(); for ( $i = 0; $i < $z->numFiles; $i++ ) { $n[] = $z->getNameIndex( $i ); } sort( $n ); echo implode( ',', $n );" ) ).toBe( `${ THEME }/parts/header.html,${ THEME }/templates/index.html,${ THEME }/theme.json` );
+		expect( wpEval( "$z = new ZipArchive(); $z->open( '/tmp/bto-export.zip' ); $n = array(); for ( $i = 0; $i < $z->numFiles; $i++ ) { $n[] = $z->getNameIndex( $i ); } sort( $n ); echo implode( ',', $n );" ) ).toBe( `${ THEME }/block-theme-ops.json,${ THEME }/parts/header.html,${ THEME }/templates/index.html,${ THEME }/theme.json` );
 	} );
 
 	test( 'a pull request goes to GitHub as one commit, and the token is never shown again', async ( { page, rest } ) => {
@@ -238,21 +255,20 @@ test.describe( 'Block Theme Ops', () => {
 		await page.getByRole( 'button', { name: 'Save settings' } ).click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Settings saved.' );
 		await expect( page.locator( '#bto-token' ) ).toHaveValue( '' );
-		await expect( page.locator( '.bto-token-status' ) ).toHaveText( 'A token is saved. It is never shown again.' );
+		await expect( page.locator( '.bto-token-status' ) ).toHaveText( 'A token is saved, encrypted. It is never shown again.' );
 		expect( await page.content() ).not.toContain( 'test-token' );
 		const settings = JSON.parse( wp( 'option', 'get', 'block_theme_ops_settings', '--format=json' ) );
-		expect( settings ).toMatchObject( { repo: 'acme/corner-bakery-site', branch: 'main', path: 'wp-content/themes/corner-bakery', token: 'test-token' } );
+		expect( settings ).toMatchObject( { repo: 'acme/corner-bakery-site', branch: 'main', path: 'wp-content/themes/corner-bakery' } );
+		// The token is encrypted in the database, and the plain text is nowhere in the option.
+		expect( settings.token ).toMatch( /^enc1:/ );
+		expect( JSON.stringify( settings ) ).not.toContain( 'test-token' );
 
 		await page.goto( `${ PAGE }&item=${ id }` );
-		let question = '';
-		page.once( 'dialog', ( dialog ) => {
-			question = dialog.message();
-			dialog.accept();
-		} );
 		await page.getByRole( 'button', { name: 'Open pull request' } ).click();
+		await expect( page.locator( '.bto-confirm' ) ).toContainText( 'Open a pull request on acme/corner-bakery-site (main) with these changes?' );
+		await confirmInline( page );
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Pull request #42 opened.' );
 		await expect( page.locator( '.bto-pr-link' ) ).toHaveAttribute( 'href', 'https://github.com/acme/corner-bakery-site/pull/42' );
-		expect( question ).toBe( 'Open a pull request on acme/corner-bakery-site (main) with these changes?' );
 
 		const calls = githubLog();
 		expect( calls.map( ( call ) => `${ call.method } ${ call.path }` ) ).toEqual( [
@@ -277,8 +293,8 @@ test.describe( 'Block Theme Ops', () => {
 
 		// A refused token comes back as a readable error.
 		wpEval( "$s = get_option( 'block_theme_ops_settings' ); $s['token'] = 'wrong'; update_option( 'block_theme_ops_settings', $s );" );
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Open pull request' } ).click();
+		await confirmInline( page );
 		await expect( page.locator( '.notice-error.bto-notice' ) ).toContainText( 'GitHub refused the request: Bad credentials (HTTP 401' );
 
 		// The token can be removed.
@@ -446,7 +462,6 @@ test.describe( 'Block Theme Ops', () => {
 		await row( page, 'Header' ).locator( 'input[type="checkbox"]' ).check();
 		await page.locator( '#bto-bulk-action option[value="pr"]' ).evaluate( ( option ) => ( option.disabled = false ) );
 		await page.locator( '#bto-bulk-action' ).selectOption( 'pr' );
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Apply' } ).click();
 		await expect( page.locator( '.notice-error.bto-notice' ) ).toContainText( 'Set the repository and a token' );
 		await page.locator( '.bto-notice' ).getByRole( 'link', { name: 'Open the GitHub settings' } ).click();
@@ -530,27 +545,19 @@ test.describe( 'Block Theme Ops', () => {
 			window.wp.hooks.addFilter( 'blockThemeOps.confirmMessage', 'e2e', ( message, details ) => ( 'keep' === details.action ? 'Keep it?' : message ) );
 			window.wp.hooks.addAction( 'blockThemeOps.beforeSubmit', 'e2e', ( details ) => sessionStorage.setItem( 'bto-e2e', JSON.stringify( details ) ) );
 		} );
-		let question = '';
-		page.once( 'dialog', ( dialog ) => {
-			question = dialog.message();
-			dialog.dismiss();
-		} );
 		await page.getByRole( 'button', { name: 'Keep the database copy' } ).click();
-		await expect.poll( () => question ).toBe( 'Keep it?' );
-		// Dismissed: nothing was sent.
+		await expect( page.locator( '.bto-confirm' ) ).toContainText( 'Keep it?' );
+		await page.locator( '.bto-confirm' ).getByRole( 'button', { name: 'Cancel' } ).click();
+		// Cancelled: nothing was sent, and focus is back on the button.
+		await expect( page.locator( '.bto-confirm' ) ).toHaveCount( 0 );
+		await expect( page.getByRole( 'button', { name: 'Keep the database copy' } ) ).toBeFocused();
 		expect( wp( 'post', 'meta', 'list', String( id ), '--keys=_block_theme_ops_kept', '--format=count' ) ).toBe( '0' );
 		expect( await page.evaluate( () => sessionStorage.getItem( 'bto-e2e' ) ) ).toBeNull();
 
 		// A filter that returns an empty message skips the question.
 		await page.evaluate( () => window.wp.hooks.addFilter( 'blockThemeOps.confirmMessage', 'e2e-skip', () => '' ) );
-		let asked = false;
-		page.on( 'dialog', ( dialog ) => {
-			asked = true;
-			dialog.accept();
-		} );
 		await page.getByRole( 'button', { name: 'Reset to theme file' } ).click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'reset to the theme file' );
-		expect( asked ).toBe( false );
 		expect( JSON.parse( await page.evaluate( () => sessionStorage.getItem( 'bto-e2e' ) ) ) ).toEqual( { action: 'reset', items: [ id ] } );
 		expect( wp( 'post', 'list', '--post_type=wp_template_part', '--format=count' ) ).toBe( '0' );
 	} );
@@ -561,7 +568,7 @@ test.describe( 'Block Theme Ops', () => {
 		editThemeFile( 'parts/header.html', ...HEADER_DEPLOY );
 
 		const listed = await rest( 'GET', '/wp-abilities/v1/abilities?category=block-theme-ops' );
-		expect( listed.body.map( ( ability ) => ability.name ).sort() ).toEqual( [ 'block-theme-ops/export-changes', 'block-theme-ops/get-drift-report', 'block-theme-ops/get-item-diff', 'block-theme-ops/reset-to-theme' ] );
+		expect( listed.body.map( ( ability ) => ability.name ).sort() ).toEqual( [ 'block-theme-ops/apply-import', 'block-theme-ops/export-changes', 'block-theme-ops/get-drift-report', 'block-theme-ops/get-item-diff', 'block-theme-ops/get-locks', 'block-theme-ops/preview-import', 'block-theme-ops/reset-to-theme', 'block-theme-ops/set-locks', 'block-theme-ops/undo-change' ] );
 		const reset = listed.body.find( ( ability ) => 'block-theme-ops/reset-to-theme' === ability.name );
 		expect( reset.meta.annotations ).toMatchObject( { readonly: false, destructive: true } );
 
@@ -594,7 +601,7 @@ test.describe( 'Block Theme Ops', () => {
 		const exported = JSON.parse( wpEval( "$e = apply_filters( 'wp_privacy_personal_data_exporters', array() ); echo wp_json_encode( call_user_func( $e['block-theme-ops']['callback'], 'admin@example.com', 1 ) );" ) );
 		expect( exported.done ).toBe( true );
 		expect( exported.data[ 0 ].item_id ).toBe( `block-theme-ops-${ backup.id }` );
-		expect( exported.data[ 0 ].data ).toEqual( expect.arrayContaining( [ { name: 'Reset by this person', value: 'Yes' } ] ) );
+		expect( exported.data[ 0 ].data ).toEqual( expect.arrayContaining( [ { name: 'Reset or imported by this person', value: 'Yes' } ] ) );
 
 		const erased = JSON.parse( wpEval( "$e = apply_filters( 'wp_privacy_personal_data_erasers', array() ); echo wp_json_encode( call_user_func( $e['block-theme-ops']['callback'], 'admin@example.com', 1 ) );" ) );
 		expect( erased.items_removed ).toBe( true );
@@ -616,15 +623,18 @@ test.describe( 'Block Theme Ops', () => {
 			// Exits 1: the header is theme-changed.
 		}
 		wp( 'option', 'update', 'block_theme_ops_settings', '{"repo":"acme/site","token":"secret"}', '--format=json' );
+		wp( 'option', 'update', 'block_theme_ops_locks', '{"all":true,"items":["parts/header"],"environments":["production"]}', '--format=json' );
+		wpEval( "set_transient( 'block_theme_ops_import_1_abcdefghijklmnopqrst', array( 'files' => array() ), HOUR_IN_SECONDS );" );
 		expect( wp( 'block-theme-ops', 'backups', '--format=count' ) ).toBe( '1' );
 
 		// Runs uninstall.php the way WordPress does, without deleting the plugin folder (it is mounted from the repository).
 		// The plugin is still active here, so the next request would schedule the check again; read it in the same request.
 		expect( wpEval( "define( 'WP_UNINSTALL_PLUGIN', 'block-theme-ops/block-theme-ops.php' ); include WP_PLUGIN_DIR . '/block-theme-ops/uninstall.php'; echo wp_next_scheduled( 'block_theme_ops_check' ) ? 'scheduled' : 'none';" ) ).toBe( 'none' );
 
-		for ( const option of [ 'block_theme_ops_settings', 'block_theme_ops_alerts' ] ) {
+		for ( const option of [ 'block_theme_ops_settings', 'block_theme_ops_alerts', 'block_theme_ops_locks' ] ) {
 			expect( () => wp( 'option', 'get', option ) ).toThrow();
 		}
+		expect( wpEval( "echo false === get_transient( 'block_theme_ops_import_1_abcdefghijklmnopqrst' ) ? 'gone' : 'left';" ) ).toBe( 'gone' );
 		expect( wp( 'post', 'list', '--post_type=bto_backup', '--post_status=any', '--format=count' ) ).toBe( '0' );
 		const keys = JSON.parse( wp( 'post', 'meta', 'list', String( id ), '--format=json' ) ).map( ( meta ) => meta.meta_key );
 		expect( keys.filter( ( key ) => key.startsWith( '_block_theme_ops_' ) ) ).toEqual( [] );
@@ -633,7 +643,7 @@ test.describe( 'Block Theme Ops', () => {
 		expect( page_id ).toBeGreaterThan( 0 );
 
 		await page.goto( `${ PAGE }&tab=backups` );
-		await expect( page.locator( '.bto-backups' ) ).toContainText( 'No resets to undo.' );
+		await expect( page.locator( '.bto-empty' ) ).toContainText( 'No resets or imports to undo.' );
 		await page.goto( `${ PAGE }&tab=settings` );
 		await expect( page.locator( '#bto-repo' ) ).toHaveValue( '' );
 	} );

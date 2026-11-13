@@ -12,5 +12,5 @@ module.exports = {
 	// This plugin's own Docker site by default. A shared site can be used by pointing WP_COMPOSE_DIR at its compose folder.
 	COMPOSE_DIR: process.env.WP_COMPOSE_DIR || path.join( __dirname, '..', 'env' ),
 	// Options the plugin stores, cleared before each run.
-	OPTIONS: ['block_theme_ops_settings', 'block_theme_ops_alerts'],
+	OPTIONS: ['block_theme_ops_settings', 'block_theme_ops_alerts', 'block_theme_ops_locks'],
 };

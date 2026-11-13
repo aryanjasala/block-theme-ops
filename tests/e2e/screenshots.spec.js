@@ -48,8 +48,8 @@ test.describe.serial( 'Screenshots', () => {
 		await page.locator( `#bto-cb-${ ids.footer }` ).check();
 		await page.locator( `#bto-cb-${ ids.styles }` ).check();
 		await page.locator( '#bto-bulk-action' ).selectOption( 'pr' );
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Apply' } ).click();
+		await page.locator( '.bto-confirm' ).getByRole( 'button' ).first().click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Pull request #42 opened.' );
 		await shot( page, 3 );
 	} );
@@ -63,5 +63,20 @@ test.describe.serial( 'Screenshots', () => {
 		await page.goto( '/wp-admin/index.php' );
 		await expect( page.locator( '.block-theme-ops-notice' ) ).toBeVisible();
 		await shot( page, 4 );
+	} );
+
+	test( '5: the Import tab previews what a zip would change', async ( { page } ) => {
+		const payload = "$d = array( 'theme' => 'corner-bakery', 'manifest' => array(), 'rejected' => array(), 'files' => array( 'parts/header.html' => '<!-- wp:group {\"tagName\":\"header\"} --><header class=\"wp-block-group\"><!-- wp:site-title /--><!-- wp:paragraph --><p>Fresh bread and coffee, baked at dawn.</p><!-- /wp:paragraph --></header><!-- /wp:group -->', 'parts/footer.html' => '<!-- wp:paragraph --><p>Open every day, 7 am to 4 pm.</p><!-- /wp:paragraph -->', 'templates/single.html' => '<!-- wp:post-content /-->', 'theme.json' => '{\"version\":3,\"styles\":{\"color\":{\"background\":\"#fbf4ea\"}}}' ) ); set_transient( 'block_theme_ops_import_1_abcdefghijklmnopqrst', $d, HOUR_IN_SECONDS );";
+		wpEval( payload );
+		await page.goto( `${ PAGE }&tab=import&review=abcdefghijklmnopqrst` );
+		await expect( page.locator( '.bto-import-table' ) ).toBeVisible();
+		await shot( page, 5 );
+	} );
+
+	test( '6: the Locks tab', async ( { page } ) => {
+		wp( 'block-theme-ops', 'lock', 'parts/header', 'parts/footer', 'styles' );
+		await page.goto( `${ PAGE }&tab=locks` );
+		await expect( page.locator( '.bto-locks-table' ) ).toBeVisible();
+		await shot( page, 6 );
 	} );
 } );

@@ -94,4 +94,63 @@ final class StylesJsonTest extends TestCase {
 		$this->assertSame( '{"version":2,"isGlobalStylesUserThemeJSON":true}', StylesJson::empty_layer( array( 'version' => 2 ) ) );
 		$this->assertSame( array(), StylesJson::decode( 'not json' ) );
 	}
+
+	public function test_derive_is_the_user_layer_that_turns_the_theme_into_a_result(): void {
+		$theme  = array(
+			'settings' => array( 'color' => array( 'palette' => array( array( 'slug' => 'base' ) ) ) ),
+			'styles'   => array(
+				'color'      => array(
+					'background' => '#fff',
+					'text'       => '#000',
+				),
+				'typography' => array( 'lineHeight' => '1.6' ),
+			),
+		);
+		$result = $theme;
+		$result['styles']['color']['background']           = '#f4ecdf';
+		$result['settings']['color']['palette'][]          = array( 'slug' => 'accent' );
+		$result['styles']['spacing']['blockGap']           = '2rem';
+
+		$layer = StylesJson::derive( $theme, $result );
+
+		$this->assertEquals(
+			array(
+				'settings' => array( 'color' => array( 'palette' => array( array( 'slug' => 'base' ), array( 'slug' => 'accent' ) ) ) ),
+				'styles'   => array(
+					'color'   => array( 'background' => '#f4ecdf' ),
+					'spacing' => array( 'blockGap' => '2rem' ),
+				),
+			),
+			$layer,
+			'Only what differs. Lists are replaced whole.'
+		);
+		$this->assertSame( $result['styles'], StylesJson::merge( $theme, $layer )['styles'] );
+		$this->assertSame( array(), StylesJson::derive( $theme, $theme ) );
+		$this->assertSame( array(), StylesJson::derive( $theme, array( 'version' => 3, 'title' => 'ignored' ) ) );
+	}
+
+	public function test_same_changes_ignores_key_order_and_empty_branches(): void {
+		$a = array(
+			'version' => 3,
+			'styles'  => array(
+				'color' => array(
+					'text'       => '#000',
+					'background' => '#fff',
+				),
+			),
+		);
+		$b = array(
+			'styles' => array(
+				'color'   => array(
+					'background' => '#fff',
+					'text'       => '#000',
+				),
+				'spacing' => array(),
+			),
+		);
+
+		$this->assertTrue( StylesJson::same_changes( $a, $b ) );
+		$b['styles']['color']['text'] = '#111';
+		$this->assertFalse( StylesJson::same_changes( $a, $b ) );
+	}
 }
