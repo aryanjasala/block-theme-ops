@@ -1706,8 +1706,9 @@ final class DriftPage implements Service {
 		delete_transient( self::notice_key() );
 
 		$type = in_array( $notice['type'] ?? '', array( 'error', 'warning' ), true ) ? (string) $notice['type'] : 'success';
+		// The "inline" class keeps core's script from moving the notice after the page loads: it is printed where it belongs, and a move while someone clicks Undo drops the click.
 		?>
-		<div class="notice notice-<?php echo esc_attr( $type ); ?> is-dismissible bto-notice" data-bto-speak="<?php echo esc_attr( (string) $notice['message'] ); ?>">
+		<div class="notice notice-<?php echo esc_attr( $type ); ?> inline is-dismissible bto-notice" data-bto-speak="<?php echo esc_attr( (string) $notice['message'] ); ?>">
 			<p>
 				<?php echo esc_html( (string) $notice['message'] ); ?>
 				<?php if ( ! empty( $notice['url'] ) ) : ?>

@@ -156,9 +156,12 @@ test.describe( 'Block Theme Ops import and locks', () => {
 		await page.getByRole( 'button', { name: 'Import selected items' } ).click();
 		await page.locator( '.bto-confirm' ).getByRole( 'button' ).first().click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( '1 item imported (0 new, 1 changed).' );
+		// Core's script must not move the notice after load: a move while Undo is clicked drops the click.
+		await expect( page.locator( '.bto-notice' ) ).toHaveClass( /\binline\b/ );
 		expect( wp( 'post', 'get', String( id ), '--field=post_content' ) ).toContain( 'and coffee' );
 
-		wp( 'block-theme-ops', 'undo', JSON.parse( wp( 'block-theme-ops', 'backups', '--format=json' ) )[ 0 ].id.toString() );
+		await page.locator( '.bto-notice' ).getByRole( 'button', { name: 'Undo' } ).click();
+		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Import undone. 1 item is back as it was.' );
 		expect( wp( 'post', 'get', String( id ), '--field=post_content' ) ).toContain( 'Local edit on this site.' );
 	} );
 
