@@ -8,6 +8,7 @@
 namespace AryanX\Axle\BlockThemeOps\Cli;
 
 use AryanX\Axle\BlockThemeOps\Abilities;
+use AryanX\Axle\BlockThemeOps\Admin\AxleUi;
 use AryanX\Axle\BlockThemeOps\Backups;
 use AryanX\Axle\BlockThemeOps\Checker;
 use AryanX\Axle\BlockThemeOps\Diff;
@@ -411,7 +412,7 @@ final class Command {
 			);
 		}
 
-		\WP_CLI::log( sprintf( 'Enforced on this site (%s): %s', function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production', $this->locks->enforced() ? 'yes' : 'no' ) );
+		\WP_CLI::log( sprintf( 'Enforced on this site (%s): %s', AxleUi::environment_type(), $this->locks->enforced() ? 'yes' : 'no' ) );
 		$this->print_rows( $rows, (string) ( $assoc_args['format'] ?? 'table' ), array( 'key', 'locked', 'file' ) );
 	}
 

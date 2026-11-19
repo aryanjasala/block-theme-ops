@@ -25,6 +25,13 @@
 		if ( 'wp_template_part' === type ) {
 			return 'parts/' + slug;
 		}
+		if ( 'wp_navigation' === type && config.navigation ) {
+			// A menu used by a locked part or template is locked with it.
+			var owner = config.navigation[ String( id ) ];
+			if ( owner ) {
+				return owner;
+			}
+		}
 		return '';
 	}
 

@@ -1070,7 +1070,7 @@ final class DriftPage implements Service {
 		$locks  = $this->locks->get();
 		$items  = $this->locks->theme_items();
 		$can    = current_user_can( Locks::capability() );
-		$env    = function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production';
+		$env    = AxleUi::environment_type();
 		$status = array();
 		foreach ( $this->drift->items() as $item ) {
 			$status[ $item['key'] ] = $item;

@@ -23,3 +23,5 @@ foreach ( array(
 if ( ! class_exists( 'WP_REST_Request' ) ) {
 	class WP_REST_Request {}
 }
+
+require __DIR__ . '/Stubs/blocks.php';

@@ -61,6 +61,13 @@ class Operations {
 	private ?Importer $importer;
 
 	/**
+	 * Merges, which Undo also brings back.
+	 *
+	 * @var Merger|null
+	 */
+	private ?Merger $merger;
+
+	/**
 	 * Sets up the operations.
 	 *
 	 * @param Drift         $drift     Inventory.
@@ -68,13 +75,15 @@ class Operations {
 	 * @param Snapshots     $snapshots Snapshots.
 	 * @param Alerts        $alerts    Pending alerts.
 	 * @param Importer|null $importer  Imports.
+	 * @param Merger|null   $merger    Merges.
 	 */
-	public function __construct( Drift $drift, Backups $backups, Snapshots $snapshots, Alerts $alerts, ?Importer $importer = null ) {
+	public function __construct( Drift $drift, Backups $backups, Snapshots $snapshots, Alerts $alerts, ?Importer $importer = null, ?Merger $merger = null ) {
 		$this->drift     = $drift;
 		$this->backups   = $backups;
 		$this->snapshots = $snapshots;
 		$this->alerts    = $alerts;
 		$this->importer  = $importer;
+		$this->merger    = $merger;
 	}
 
 	/**
@@ -100,6 +109,20 @@ class Operations {
 				'post_id' => 0,
 				'undone'  => $result['undone'],
 				'skipped' => $result['skipped'],
+			);
+		}
+
+		if ( Merger::KIND === ( $backup['kind'] ?? '' ) ) {
+			if ( null === $this->merger ) {
+				return new \WP_Error( 'block_theme_ops_no_merger', __( 'Merges are not available.', 'block-theme-ops' ) );
+			}
+			$merged = $this->merger->undo( $backup );
+
+			return is_wp_error( $merged ) ? $merged : array(
+				'kind'    => 'merge',
+				'post_id' => $merged,
+				'undone'  => array( (string) ( $backup['item']['key'] ?? $backup['slug'] ) ),
+				'skipped' => array(),
 			);
 		}
 
@@ -216,7 +239,10 @@ class Operations {
 			return new \WP_Error( 'block_theme_ops_no_backup', __( 'That backup no longer exists.', 'block-theme-ops' ) );
 		}
 		if ( 'import' === ( $backup['kind'] ?? '' ) ) {
-			return new \WP_Error( 'block_theme_ops_is_import', __( 'That backup is an import, not a reset. Use Undo on the Backups tab.', 'block-theme-ops' ) );
+			return new \WP_Error( 'block_theme_ops_is_import', __( 'That backup is an import, not a reset. Use Undo on the Block Theme Ops screen.', 'block-theme-ops' ) );
+		}
+		if ( Merger::KIND === ( $backup['kind'] ?? '' ) ) {
+			return new \WP_Error( 'block_theme_ops_is_merge', __( 'That backup is a merge, not a reset. Use Undo on the Block Theme Ops screen.', 'block-theme-ops' ) );
 		}
 		if ( $backup['undo_until'] <= time() ) {
 			return new \WP_Error( 'block_theme_ops_expired', __( 'This reset is too old to undo.', 'block-theme-ops' ) );
@@ -261,6 +287,12 @@ class Operations {
 	 *                undo in an activity log recreated it), `customized` when someone customized the item again.
 	 */
 	public function undo_blocker( array $backup ): string {
+		if ( Merger::KIND === ( $backup['kind'] ?? '' ) ) {
+			$post = get_post( (int) $backup['original_id'] );
+
+			return $post instanceof \WP_Post && Markup::same( (string) $post->post_content, (string) ( $backup['merged'] ?? '' ) ) ? '' : self::CUSTOMIZED;
+		}
+
 		if ( Themes::GLOBAL_STYLES === $backup['post_type'] ) {
 			$post = get_post( (int) $backup['original_id'] );
 			if ( ! $post instanceof \WP_Post || Themes::GLOBAL_STYLES !== $post->post_type ) {
@@ -293,6 +325,8 @@ class Operations {
 	public static function blocked_message( string $reason, array $backup ): string {
 		if ( self::RESTORED === $reason ) {
 			$message = __( 'This database copy is back already, for example through an undo in an activity log. There is nothing to undo.', 'block-theme-ops' );
+		} elseif ( Merger::KIND === ( $backup['kind'] ?? '' ) ) {
+			$message = __( 'Someone customized this item again since the merge. Undo would lose that work.', 'block-theme-ops' );
 		} elseif ( Themes::GLOBAL_STYLES === ( $backup['post_type'] ?? '' ) ) {
 			$message = __( 'Someone changed the global styles again since the reset. Reset them first, then undo.', 'block-theme-ops' );
 		} else {
@@ -300,7 +334,7 @@ class Operations {
 		}
 
 		/**
-		 * Filters the message shown when a reset cannot be undone, on the Backups tab and from Undo.
+		 * Filters the message shown when a reset cannot be undone, on the Block Theme Ops screen and from Undo.
 		 *
 		 * @param string $message Plain text.
 		 * @param string $reason  `restored` (the same copy is back already) or `customized` (customized again since the reset).

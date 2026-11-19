@@ -109,6 +109,36 @@ final class LocksTest extends PluginTestCase {
 		$this->assertTrue( $locks->enforced() );
 	}
 
+	public function test_a_copy_that_staging_guard_marks_as_staging_is_not_locked_as_production(): void {
+		$locks = $this->locks( array( 'items' => array( 'parts/header' ) ) );
+		$this->assertTrue( $locks->enforced() );
+
+		// Core still says production on the copy; Staging Guard answers the Axle filter.
+		Filters\expectApplied( 'axle_environment_type' )->andReturn( 'staging' );
+		$this->assertFalse( $locks->enforced() );
+		$this->assertFalse( $locks->blocks( Themes::TEMPLATE_PART, 'header' ) );
+	}
+
+	public function test_a_navigation_menu_used_by_a_locked_part_is_locked_with_it(): void {
+		$this->options[ Locks::OPTION ] = array( 'items' => array( 'parts/header' ) );
+		$locks                          = $this->locks();
+
+		Functions\when( 'get_block_template' )->alias(
+			static function ( $id ) {
+				return 'corner-bakery//header' === $id ? (object) array( 'content' => '<!-- wp:group --><div class="wp-block-group"><!-- wp:navigation {"ref":77} /--></div><!-- /wp:group -->' ) : null;
+			}
+		);
+		$this->assertSame( array( 77 => 'parts/header' ), $locks->navigation_ids() );
+
+		Actions\expectDone( 'block_theme_ops_save_blocked' )->once();
+		$refused = $locks->check_request( null, null, new LockRequest( '/wp/v2/navigation/77', 'POST' ) );
+		$this->assertInstanceOf( \WP_Error::class, $refused );
+		$this->assertSame( 'block_theme_ops_locked', $refused->get_error_code() );
+
+		$this->assertNull( $locks->check_request( null, null, new LockRequest( '/wp/v2/navigation/78', 'POST' ) ), 'Another menu is free.' );
+		$this->assertNull( $locks->check_request( null, null, new LockRequest( '/wp/v2/navigation/77', 'GET' ) ), 'Reading is free.' );
+	}
+
 	public function test_the_environments_filter_wins_and_falls_back_on_junk(): void {
 		$locks = $this->locks();
 

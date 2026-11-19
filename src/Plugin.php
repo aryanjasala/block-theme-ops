@@ -97,6 +97,13 @@ final class Plugin {
 	private Checker $checker;
 
 	/**
+	 * Theme update merges.
+	 *
+	 * @var Merger
+	 */
+	private Merger $merger;
+
+	/**
 	 * Starts the plugin. Runs on `plugins_loaded`.
 	 */
 	public static function boot(): void {
@@ -127,7 +134,8 @@ final class Plugin {
 		$this->alerts     = new Alerts();
 		$this->importer   = new Importer( $this->drift, $this->backups, $this->alerts );
 		$this->locks      = new Locks( $themes, $this->settings );
-		$this->operations = new Operations( $this->drift, $this->backups, $this->snapshots, $this->alerts, $this->importer );
+		$this->merger     = new Merger( $this->drift, $this->backups, $this->snapshots, $this->alerts );
+		$this->operations = new Operations( $this->drift, $this->backups, $this->snapshots, $this->alerts, $this->importer, $this->merger );
 		$this->exporter   = new Exporter( $this->drift, $this->settings );
 		$this->checker    = new Checker( $this->drift, $this->snapshots, $this->backups, $this->alerts, $this->settings );
 	}
@@ -166,6 +174,15 @@ final class Plugin {
 	 */
 	public function importer(): Importer {
 		return $this->importer;
+	}
+
+	/**
+	 * Merge of a theme update into a customized template, for other plugins.
+	 *
+	 * @return Merger
+	 */
+	public function merger(): Merger {
+		return $this->merger;
 	}
 
 	/**
