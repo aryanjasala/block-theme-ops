@@ -15,6 +15,7 @@ use AryanX\Axle\BlockThemeOps\Drift;
 use AryanX\Axle\BlockThemeOps\Exporter;
 use AryanX\Axle\BlockThemeOps\Importer;
 use AryanX\Axle\BlockThemeOps\Locks;
+use AryanX\Axle\BlockThemeOps\Merger;
 use AryanX\Axle\BlockThemeOps\Operations;
 use AryanX\Axle\BlockThemeOps\Settings;
 use AryanX\Axle\BlockThemeOps\Snapshots;
@@ -39,7 +40,7 @@ final class AbilitiesTest extends PluginTestCase {
 		$settings = new Settings();
 		$importer = new Importer( $drift, new Backups(), new Alerts() );
 
-		return new Abilities( $drift, new Operations( $drift, new Backups(), new Snapshots( $themes ), new Alerts(), $importer ), new Exporter( $drift, $settings ), $importer, new Locks( $themes, $settings ) );
+		return new Abilities( $drift, new Operations( $drift, new Backups(), new Snapshots( $themes ), new Alerts(), $importer ), new Exporter( $drift, $settings ), $importer, new Locks( $themes, $settings ), new Merger( $drift, new Backups(), new Snapshots( $themes ), new Alerts() ) );
 	}
 
 	public function test_every_ability_has_the_right_annotations(): void {
@@ -55,6 +56,8 @@ final class AbilitiesTest extends PluginTestCase {
 				'block-theme-ops/get-drift-report',
 				'block-theme-ops/get-item-diff',
 				'block-theme-ops/reset-to-theme',
+				'block-theme-ops/preview-merge',
+				'block-theme-ops/merge-theme-update',
 				'block-theme-ops/export-changes',
 				'block-theme-ops/preview-import',
 				'block-theme-ops/apply-import',
@@ -64,7 +67,7 @@ final class AbilitiesTest extends PluginTestCase {
 			),
 			array_keys( $this->registered )
 		);
-		$writes = array( 'reset-to-theme', 'apply-import', 'undo-change', 'set-locks' );
+		$writes = array( 'reset-to-theme', 'merge-theme-update', 'apply-import', 'undo-change', 'set-locks' );
 		foreach ( $this->registered as $name => $args ) {
 			$readonly = ! in_array( substr( $name, strlen( 'block-theme-ops/' ) ), $writes, true );
 			$this->assertSame( $readonly, $args['meta']['annotations']['readonly'], $name );
@@ -73,7 +76,7 @@ final class AbilitiesTest extends PluginTestCase {
 			$this->assertSame( array( 'public' => true ), $args['meta']['mcp'] );
 			$this->assertSame( 'block-theme-ops', $args['category'] );
 		}
-		foreach ( array( 'reset-to-theme', 'apply-import', 'undo-change' ) as $destructive ) {
+		foreach ( array( 'reset-to-theme', 'merge-theme-update', 'apply-import', 'undo-change' ) as $destructive ) {
 			$this->assertTrue( $this->registered[ 'block-theme-ops/' . $destructive ]['meta']['annotations']['destructive'], $destructive );
 		}
 		$this->assertFalse( $this->registered['block-theme-ops/set-locks']['meta']['annotations']['destructive'] );
@@ -117,6 +120,28 @@ final class AbilitiesTest extends PluginTestCase {
 
 		$this->assertSame( 'block_theme_ops_not_found', $abilities->export_changes( array( 'items' => array( 'parts/nope' ) ) )->get_error_code() );
 		$this->assertSame( 'block_theme_ops_not_found', $abilities->reset_to_theme( array( 'item' => 'nope' ) )->get_error_code() );
+	}
+
+	public function test_the_merge_abilities_preview_then_merge_and_refuse_items_that_cannot_be_merged(): void {
+		Functions\when( 'wp_json_encode' )->alias( 'json_encode' );
+		Functions\when( 'wp_slash' )->returnArg();
+		$p = static fn( string $t ): string => "<!-- wp:paragraph --><p>{$t}</p><!-- /wp:paragraph -->";
+		$this->write( 'parts/header.html', $p( 'One' ) );
+		$post = $this->add_post( 7, Themes::TEMPLATE_PART, 'header', $p( 'One' ) . $p( 'Mine' ), array( 'post_modified_gmt' => gmdate( 'Y-m-d H:i:s', time() + 60 ) ) );
+		( new Snapshots( new Themes() ) )->record( $post, 'save' );
+		$this->write( 'parts/header.html', $p( 'One' ) . '<!-- wp:site-title /-->' );
+		\WP_Query::$queue = array( array( 'posts' => array( $post ) ), array( 'posts' => array( $post ) ), array( 'posts' => array( $post ) ) );
+		$abilities         = $this->abilities();
+
+		$preview = $abilities->preview_merge( array( 'item' => 'parts/header' ) );
+		$this->assertTrue( $preview['can_merge'] );
+		$this->assertTrue( $preview['resolved'] );
+		$this->assertSame( 'added', $preview['applied'][0]['action'] );
+		$this->assertStringContainsString( 'site-title', $preview['merged'] );
+		$this->assertStringContainsString( 'Mine', $preview['merged'] );
+
+		$this->assertSame( 'block_theme_ops_not_found', $abilities->preview_merge( array( 'item' => 'nope' ) )->get_error_code() );
+		$this->assertSame( 'block_theme_ops_not_found', $abilities->merge_theme_update( array( 'item' => 'nope' ) )->get_error_code() );
 	}
 
 	public function test_items_the_user_cannot_edit_are_left_out_even_with_the_screen_capability(): void {

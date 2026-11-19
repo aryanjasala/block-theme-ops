@@ -22,7 +22,7 @@ const stagingIndex = () => themeFile( 'templates/index.html' ).replace( 'Latest 
 const importRow = ( page, key ) => page.locator( `.bto-import-row[data-key="${ key }"]` );
 
 /**
- * Downloads the zip Theme Drift makes for every item, as someone moving changes off staging would.
+ * Downloads the zip Block Theme Ops makes for every item, as someone moving changes off staging would.
  *
  * @param {import('@playwright/test').Page} page Page.
  * @return {Promise<string>} Path of the zip on this computer.

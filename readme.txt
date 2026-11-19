@@ -25,7 +25,7 @@ Free and open source under the GPL. No pro version, no upsells, no ads in wp-adm
 
 = See what changed =
 
-Appearance > Theme Drift shows the counts per status and a list of every item, with its theme file, when it was saved in the Site Editor and by whom. Open an item for three diffs:
+Appearance > Block Theme Ops shows the counts per status and a list of every item, with its theme file, when it was saved in the Site Editor and by whom. Open an item for three diffs:
 
 * the database copy against the theme file now, which is what a reset throws away
 * the theme file at the time of the edit against the theme file now, which is what the site is ignoring
@@ -91,7 +91,7 @@ On WordPress 6.9 and later the plugin registers abilities for the drift report, 
 
 == External services ==
 
-Block Theme Ops connects to the GitHub REST API (https://api.github.com) only when an administrator clicks "Open pull request" on Appearance > Theme Drift, or runs `wp block-theme-ops export --pr`. Nothing is sent otherwise, and nothing is sent on a schedule.
+Block Theme Ops connects to the GitHub REST API (https://api.github.com) only when an administrator clicks "Open pull request" on Appearance > Block Theme Ops, or runs `wp block-theme-ops export --pr`. Nothing is sent otherwise, and nothing is sent on a schedule.
 
 When it does, it sends the exported template, template part and theme.json files, the display names of the people who last edited them and when, the site's name and address, and the access token you set. It reads the base branch, creates a commit and a branch, and opens a pull request in the repository you set.
 
@@ -134,7 +134,7 @@ Not yet. The Git host sits behind an interface, and another one can be plugged i
 
 == Screenshots ==
 
-1. Appearance > Theme Drift: counts per status and every Site Editor change of the active theme.
+1. Appearance > Block Theme Ops: counts per status and every Site Editor change of the active theme.
 2. One template part: the database copy against the theme file now, and what the theme changed since the edit.
 3. A pull request opened on GitHub with the selected Site Editor changes.
 4. The notice after a theme update leaves a Site Editor change behind.

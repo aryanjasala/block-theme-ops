@@ -79,7 +79,7 @@ class Locks implements Service {
 		/**
 		 * Filters the capability needed to lock and unlock templates on the Locks tab and in abilities.
 		 *
-		 * @param string $capability Default the same as Theme Drift itself, edit_theme_options.
+		 * @param string $capability Default the same as Block Theme Ops itself, edit_theme_options.
 		 */
 		$capability = (string) apply_filters( 'block_theme_ops_lock_capability', DriftPage::capability() );
 

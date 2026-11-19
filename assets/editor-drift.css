@@ -1,0 +1,38 @@
+.bto-editor-diff {
+	max-height: 50vh;
+	overflow: auto;
+	margin: 16px 0;
+	padding: 8px 0;
+	border: 1px solid #dcdcde;
+	background: #fff;
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.bto-editor-diff__line {
+	padding: 0 12px;
+}
+
+.bto-editor-diff__line.is-head {
+	color: #50575e;
+	font-weight: 600;
+}
+
+.bto-editor-diff__line.is-add {
+	background: #e6f6e6;
+	color: #0a3d0a;
+}
+
+.bto-editor-diff__line.is-del {
+	background: #fce8e8;
+	color: #5c0a0a;
+}
+
+.bto-editor-modal__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	justify-content: flex-end;
+}

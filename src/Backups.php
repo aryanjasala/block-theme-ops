@@ -36,8 +36,8 @@ class Backups implements Service {
 			self::POST_TYPE,
 			array(
 				'labels'           => array(
-					'name'          => __( 'Theme Drift backups', 'block-theme-ops' ),
-					'singular_name' => __( 'Theme Drift backup', 'block-theme-ops' ),
+					'name'          => __( 'Block Theme Ops backups', 'block-theme-ops' ),
+					'singular_name' => __( 'Block Theme Ops backup', 'block-theme-ops' ),
 				),
 				'public'           => false,
 				'show_ui'          => false,

@@ -212,11 +212,12 @@ final class Plugin {
 			$this->backups,
 			$this->checker,
 			$this->locks,
-			new DriftPage( $this->drift, $this->operations, $this->exporter, $this->backups, $this->settings, $this->alerts, $this->importer, $this->locks ),
+			new DriftPage( $this->drift, $this->operations, $this->exporter, $this->backups, $this->settings, $this->alerts, $this->importer, $this->locks, $this->merger ),
+			new Rest( $this->drift, $this->merger ),
 			new Notice( $this->drift, $this->alerts ),
 			new SiteHealth( $this->drift, $this->locks ),
 			new Privacy(),
-			new Abilities( $this->drift, $this->operations, $this->exporter, $this->importer, $this->locks ),
+			new Abilities( $this->drift, $this->operations, $this->exporter, $this->importer, $this->locks, $this->merger ),
 		);
 
 		add_action( 'admin_init', array( $this->settings, 'protect_token' ) );
@@ -226,7 +227,7 @@ final class Plugin {
 		}
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			\WP_CLI::add_command( 'block-theme-ops', new Command( $this->drift, $this->operations, $this->exporter, $this->backups, $this->checker, $this->importer, $this->locks ) );
+			\WP_CLI::add_command( 'block-theme-ops', new Command( $this->drift, $this->operations, $this->exporter, $this->backups, $this->checker, $this->importer, $this->locks, $this->merger ) );
 		}
 	}
 }

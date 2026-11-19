@@ -28,7 +28,7 @@ test.describe.serial( 'Screenshots', () => {
 		wp( 'theme', 'activate', process.env.WP_THEME || 'twentytwentyfive' );
 	} );
 
-	test( '1: Theme Drift with every status', async ( { page } ) => {
+	test( '1: Block Theme Ops with every status', async ( { page } ) => {
 		await page.goto( PAGE );
 		await expect( page.locator( '.bto-table tbody tr' ) ).toHaveCount( 5 );
 		await shot( page, 1 );

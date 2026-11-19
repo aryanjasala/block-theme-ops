@@ -233,6 +233,9 @@ class Merger {
 		}
 
 		$post = get_post( (int) $backup['original_id'] );
+		if ( $post instanceof \WP_Post && ! current_user_can( 'edit_post', $post->ID ) ) {
+			return new \WP_Error( 'block_theme_ops_forbidden', __( 'You are not allowed to change this item.', 'block-theme-ops' ) );
+		}
 		if ( ! $post instanceof \WP_Post || $post->post_type !== $backup['post_type'] ) {
 			return new \WP_Error( 'block_theme_ops_exists', __( 'The merged template no longer exists, so there is nothing to put back. Reset or restore it instead.', 'block-theme-ops' ) );
 		}

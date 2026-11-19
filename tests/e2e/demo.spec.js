@@ -28,7 +28,7 @@ test( 'demo: a theme deploy left a Site Editor change behind; compare, reset, un
 			await demo.start();
 			await demo.moveTo( page.locator( '.block-theme-ops-notice p' ).first() );
 			await demo.pause( 1800 );
-			await demo.click( page.getByRole( 'link', { name: 'Review in Theme Drift' } ) );
+			await demo.click( page.getByRole( 'link', { name: 'Review in Block Theme Ops' } ) );
 			await page.goto( PAGE );
 			await demo.moveTo( page.locator( '.bto-cards' ) );
 			await demo.pause( 1500 );

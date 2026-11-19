@@ -15,7 +15,9 @@ use AryanX\Axle\BlockThemeOps\Diff;
 use AryanX\Axle\BlockThemeOps\Drift;
 use AryanX\Axle\BlockThemeOps\Exporter;
 use AryanX\Axle\BlockThemeOps\Importer;
+use AryanX\Axle\BlockThemeOps\BlockMerge;
 use AryanX\Axle\BlockThemeOps\Locks;
+use AryanX\Axle\BlockThemeOps\Merger;
 use AryanX\Axle\BlockThemeOps\Operations;
 
 defined( 'ABSPATH' ) || exit;
@@ -75,6 +77,13 @@ final class Command {
 	private Locks $locks;
 
 	/**
+	 * Merges.
+	 *
+	 * @var Merger
+	 */
+	private Merger $merger;
+
+	/**
 	 * Sets up the command.
 	 *
 	 * @param Drift      $drift      Inventory.
@@ -84,12 +93,14 @@ final class Command {
 	 * @param Checker    $checker    Drift checks.
 	 * @param Importer   $importer   Import.
 	 * @param Locks      $locks      Locks.
+	 * @param Merger     $merger     Merges.
 	 */
-	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Checker $checker, Importer $importer, Locks $locks ) {
+	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Checker $checker, Importer $importer, Locks $locks, Merger $merger ) {
 		$this->drift      = $drift;
 		$this->operations = $operations;
 		$this->exporter   = $exporter;
 		$this->backups    = $backups;
+		$this->merger     = $merger;
 		$this->checker    = $checker;
 		$this->importer   = $importer;
 		$this->locks      = $locks;
@@ -261,7 +272,103 @@ final class Command {
 	}
 
 	/**
-	 * Undoes a reset or an import from its backup.
+	 * Merges a theme update into a template or part that was customized in the Site Editor.
+	 *
+	 * Block by block: changes only the theme made are added, your changes are kept, and a block both sides
+	 * changed is a conflict that needs a choice. The base is the copy of the theme file taken when the item
+	 * was saved. A backup is kept, and `wp block-theme-ops undo` brings the earlier copy back.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <item>
+	 * : Post ID, templates/<slug> or parts/<slug>.
+	 *
+	 * [--dry-run]
+	 * : Show what merges and which conflicts need a choice, and write nothing.
+	 *
+	 * [--ours=<ids>]
+	 * : Comma-separated conflict IDs to settle with this site's version.
+	 *
+	 * [--theirs=<ids>]
+	 * : Comma-separated conflict IDs to settle with the theme's version.
+	 *
+	 * [--all-ours]
+	 * : Settle every conflict not named with this site's version.
+	 *
+	 * [--all-theirs]
+	 * : Settle every conflict not named with the theme's version.
+	 *
+	 * [--yes]
+	 * : Do not ask before writing.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp block-theme-ops merge parts/header --dry-run
+	 *     wp block-theme-ops merge parts/header --all-ours --yes
+	 *     wp block-theme-ops merge templates/single --theirs=c0.1 --all-ours --yes
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Named arguments.
+	 */
+	public function merge( array $args, array $assoc_args ): void {
+		$item   = $this->item( $args[0] );
+		$reason = $this->merger->blocker( $item );
+		if ( '' !== $reason ) {
+			\WP_CLI::error( $reason );
+		}
+
+		$choices = array();
+		foreach ( array(
+			BlockMerge::OURS   => 'ours',
+			BlockMerge::THEIRS => 'theirs',
+		) as $side => $flag ) {
+			foreach ( array_filter( array_map( 'trim', explode( ',', (string) ( $assoc_args[ $flag ] ?? '' ) ) ) ) as $id ) {
+				$choices[ $id ] = $side;
+			}
+		}
+
+		$plan = $this->merger->plan( $item, $choices );
+		if ( is_wp_error( $plan ) ) {
+			\WP_CLI::error( $plan->get_error_message() );
+		}
+
+		$default = ! empty( $assoc_args['all-ours'] ) ? BlockMerge::OURS : ( ! empty( $assoc_args['all-theirs'] ) ? BlockMerge::THEIRS : '' );
+		if ( '' !== $default ) {
+			foreach ( $plan['conflicts'] as $conflict ) {
+				$choices[ $conflict['id'] ] = $choices[ $conflict['id'] ] ?? $default;
+			}
+			$plan = $this->merger->plan( $item, $choices );
+			if ( is_wp_error( $plan ) ) {
+				\WP_CLI::error( $plan->get_error_message() );
+			}
+		}
+
+		foreach ( $plan['applied'] as $change ) {
+			\WP_CLI::log( sprintf( 'From the theme: %s %s.', $change['action'], $change['name'] ) );
+		}
+		foreach ( $plan['conflicts'] as $conflict ) {
+			\WP_CLI::log( sprintf( 'Conflict %s: %s (%s). Choice: %s.', $conflict['id'], $conflict['name'], $conflict['kind'], $conflict['choice'] ?? 'none yet' ) );
+		}
+
+		if ( ! empty( $assoc_args['dry-run'] ) ) {
+			\WP_CLI::success( $plan['resolved'] ? 'Dry run. Nothing was written. This merge has no open conflicts.' : 'Dry run. Nothing was written. Name a choice for each open conflict with --ours, --theirs, --all-ours or --all-theirs.' );
+			return;
+		}
+		if ( ! $plan['resolved'] ) {
+			\WP_CLI::error( 'Conflicts need a choice: --ours=<ids>, --theirs=<ids>, --all-ours or --all-theirs. Nothing was written.' );
+		}
+
+		\WP_CLI::confirm( sprintf( 'Merge the theme update into %s?', $item['key'] ), $assoc_args );
+		$done = $this->merger->apply( $item, $choices, $plan['key'] );
+		if ( is_wp_error( $done ) ) {
+			\WP_CLI::error( $done->get_error_message() );
+		}
+
+		\WP_CLI::success( sprintf( 'Merged %s. Undo with: wp block-theme-ops undo %d', $item['key'], $done['backup'] ) );
+	}
+
+	/**
+	 * Undoes a reset, a merge or an import from its backup.
 	 *
 	 * ## OPTIONS
 	 *
@@ -281,6 +388,11 @@ final class Command {
 		}
 		if ( 'import' === $result['kind'] ) {
 			\WP_CLI::success( sprintf( 'Import undone: %s.', implode( ', ', $result['undone'] ) ) );
+			return;
+		}
+
+		if ( 'merge' === $result['kind'] ) {
+			\WP_CLI::success( sprintf( 'Merge undone: %s is back as it was.', implode( ', ', $result['undone'] ) ) );
 			return;
 		}
 
@@ -573,7 +685,7 @@ final class Command {
 	 * : Write a zip laid out like the theme to this path.
 	 *
 	 * [--pr]
-	 * : Open a pull request on the repository set under Appearance > Theme Drift > Settings.
+	 * : Open a pull request on the repository set under Appearance > Block Theme Ops > Settings.
 	 *
 	 * [--format=<format>]
 	 * : Without --zip or --pr: table lists the files, json prints path => contents.

@@ -16,7 +16,7 @@ const HEADER_DEPLOY = [ '<!-- wp:site-title /-->', '<!-- wp:site-title /-->\n\n\
 const editedHeader = () => themeFile( 'parts/header.html' ).replace( ...HEADER_EDIT );
 
 /**
- * Goes ahead with the question Theme Drift asks in place before a reset or a pull request.
+ * Goes ahead with the question Block Theme Ops asks in place before a reset or a pull request.
  *
  * @param {import('@playwright/test').Page} page Page.
  */
@@ -370,7 +370,7 @@ test.describe( 'Block Theme Ops', () => {
 
 		await page.goto( '/wp-admin/themes.php' );
 		await expect( page.locator( '.block-theme-ops-notice' ) ).toContainText( 'Header (template part)' );
-		await page.locator( '.block-theme-ops-notice' ).getByRole( 'link', { name: 'Review in Theme Drift' } ).click();
+		await page.locator( '.block-theme-ops-notice' ).getByRole( 'link', { name: 'Review in Block Theme Ops' } ).click();
 		await expect( page ).toHaveURL( /status=theme-changed/ );
 		await expect( row( page, 'Header' ) ).toBeVisible();
 	} );
@@ -390,7 +390,7 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( page.locator( '#bto-diff-reset' ) ).toContainText( 'Reset throws the database copy away.' );
 		await expect( page.locator( '.bto-facts code' ) ).toHaveAttribute( 'dir', 'ltr' );
 		// The way back points the way the language reads.
-		await expect( page.locator( '.bto-back a' ) ).toHaveText( '→ Theme Drift' );
+		await expect( page.locator( '.bto-back a' ) ).toHaveText( '→ Block Theme Ops' );
 
 		await page.goto( `${ PAGE }&item=${ landing.body.wp_id }` );
 		await expect( page.locator( 'pre.bto-code' ) ).toHaveAttribute( 'dir', 'ltr' );
@@ -403,7 +403,7 @@ test.describe( 'Block Theme Ops', () => {
 		await customize( rest, 'templates', 'single', themeFile( 'templates/single.html' ).replace( '</main>', '<!-- wp:paragraph --><p>Thanks for reading.</p><!-- /wp:paragraph --></main>' ) );
 
 		await page.goto( PAGE );
-		await expect( page.getByRole( 'navigation', { name: 'Theme Drift sections' } ) ).toBeVisible();
+		await expect( page.getByRole( 'navigation', { name: 'Block Theme Ops sections' } ) ).toBeVisible();
 
 		// WCAG AA: 4.5:1 for the small code chips, on white and on the grey striped rows.
 		const ratios = await page.locator( '.bto-type code' ).evaluateAll( ( nodes ) => {

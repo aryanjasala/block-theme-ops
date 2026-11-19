@@ -275,7 +275,7 @@ class Exporter {
 
 		$provider = $this->provider();
 		if ( ! $provider->is_configured() ) {
-			return new \WP_Error( 'block_theme_ops_not_configured', __( 'Set the repository and a token under Appearance > Theme Drift > Settings first.', 'block-theme-ops' ) );
+			return new \WP_Error( 'block_theme_ops_not_configured', __( 'Set the repository and a token under Appearance > Block Theme Ops > Settings first.', 'block-theme-ops' ) );
 		}
 
 		$files = $this->files( $items, $context );

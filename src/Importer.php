@@ -98,7 +98,7 @@ class Importer {
 		 * Filters the capability needed to import Site Editor changes, on the screen and in abilities.
 		 * Each item is also checked against the post it writes.
 		 *
-		 * @param string $capability Default the same as Theme Drift itself, edit_theme_options.
+		 * @param string $capability Default the same as Block Theme Ops itself, edit_theme_options.
 		 */
 		$capability = (string) apply_filters( 'block_theme_ops_import_capability', DriftPage::capability() );
 
