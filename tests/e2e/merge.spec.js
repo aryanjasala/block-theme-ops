@@ -36,6 +36,9 @@ test.describe( 'Block Theme Ops merge', () => {
 		await expect( page.locator( '#bto-diff-merge .diff-addedline' ) ).toContainText( 'wp:navigation' );
 		await expect( page.locator( '#bto-merge-undo' ) ).toContainText( 'Makes one backup of this item first. Undo for 30 days.' );
 
+		// The rendered preview loads in its own frame: let the page settle, and bring the button into view, before the click.
+		await page.waitForLoadState( 'networkidle' );
+		await page.locator( '.bto-merge-go' ).scrollIntoViewIfNeeded();
 		await page.getByRole( 'button', { name: 'Merge', exact: true } ).click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Merged. 1 change from the theme was added and your changes were kept.' );
 		expect( content( id ) ).toContain( 'and coffee' );
@@ -87,11 +90,19 @@ test.describe( 'Block Theme Ops merge', () => {
 		expect( content( other ) ).toContain( 'Open every day' );
 	} );
 
-	test( 'items with nothing to merge say why, and the merge route refuses people who cannot edit', async ( { page, rest } ) => {
+	test( 'items with nothing to merge say why', async ( { page, rest } ) => {
 		const id = await customize( rest, 'template-parts', 'header', editedHeader() );
 
 		await page.goto( `${ PAGE }&item=${ id }&merge=1` );
 		await expect( page.locator( '.bto-merge-blocked' ) ).toContainText( 'nothing to merge' );
+		await page.goto( `${ PAGE }&item=${ id }` );
+		await expect( page.locator( '.bto-merge-link' ) ).toHaveCount( 0 );
+		expect( () => wp( 'block-theme-ops', 'merge', 'parts/header', '--yes' ) ).toThrow( /nothing to merge/ );
+	} );
+
+	test( 'the merge abilities preview, merge and undo (WordPress 6.9+)', async ( { rest } ) => {
+		test.skip( '1' !== wpEval( "echo function_exists( 'wp_register_ability' ) ? 1 : 0;" ), 'The Abilities API arrived in WordPress 6.9.' );
+		await customize( rest, 'template-parts', 'header', editedHeader() );
 
 		const preview = await rest( 'GET', '/wp-abilities/v1/abilities/block-theme-ops/preview-merge/run?input[item]=parts/header' );
 		expect( preview.body ).toMatchObject( { can_merge: false } );
