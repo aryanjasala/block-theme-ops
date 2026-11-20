@@ -105,7 +105,6 @@ test.describe( 'Block Theme Ops', () => {
 		expect( backups ).toHaveLength( 1 );
 		expect( backups[ 0 ] ).toMatchObject( { key: 'parts/header', theme: THEME, reset_by: 'admin' } );
 
-		await page.getByRole( 'link', { name: 'Backups' } ).click();
 		await expect( page.locator( '.bto-backups tbody tr' ) ).toHaveCount( 1 );
 		await expect( page.locator( '.bto-backups' ) ).toContainText( 'parts/header' );
 		await page.getByRole( 'button', { name: 'Undo reset' } ).click();
@@ -474,17 +473,17 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( page.locator( '#bto-pr-hint' ) ).toHaveCount( 0 );
 	} );
 
-	test( 'Backups says up front when an item is back already or customized again', async ( { page, rest } ) => {
+	test( 'Undo says up front when an item is back already or customized again', async ( { page, rest } ) => {
 		await customize( rest, 'template-parts', 'header', editedHeader() );
 		wp( 'block-theme-ops', 'reset', 'parts/header', '--yes' );
 		const backup = JSON.parse( wp( 'block-theme-ops', 'backups', '--format=json' ) )[ 0 ].id;
 
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		await expect( page.locator( '.bto-backups' ).getByRole( 'button', { name: 'Undo reset' } ) ).toBeVisible();
 
 		// An undo in an activity log puts the same customization back.
 		await customize( rest, 'template-parts', 'header', editedHeader() );
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		const blocked = page.locator( `.bto-backup[data-id="${ backup }"] .bto-blocked` );
 		await expect( blocked ).toHaveAttribute( 'data-reason', 'restored' );
 		await expect( blocked ).toContainText( 'Back already' );
@@ -494,7 +493,7 @@ test.describe( 'Block Theme Ops', () => {
 
 		// Someone changes it again: that is a different message.
 		await customize( rest, 'template-parts', 'header', editedHeader().replace( 'and coffee', 'and cake' ) );
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		await expect( blocked ).toHaveAttribute( 'data-reason', 'customized' );
 		await expect( blocked ).toContainText( 'Customized again since' );
 		await expect( blocked ).toContainText( 'Someone customized this item again since the reset.' );
@@ -589,7 +588,7 @@ test.describe( 'Block Theme Ops', () => {
 		expect( done.body.reset ).toEqual( [ { key: 'parts/header', backup_id: expect.any( Number ) } ] );
 		expect( wp( 'post', 'list', '--post_type=wp_template_part', '--format=count' ) ).toBe( '0' );
 
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		await expect( page.locator( '.bto-backups tbody tr' ) ).toHaveCount( 1 );
 	} );
 
@@ -642,8 +641,8 @@ test.describe( 'Block Theme Ops', () => {
 		expect( wp( 'post', 'get', String( id ), '--field=post_content' ) ).toContain( 'and coffee' );
 		expect( page_id ).toBeGreaterThan( 0 );
 
-		await page.goto( `${ PAGE }&tab=backups` );
-		await expect( page.locator( '.bto-empty' ) ).toContainText( 'No resets or imports to undo.' );
+		await page.goto( `${ PAGE }` );
+		await expect( page.locator( '.bto-backups' ) ).toHaveCount( 0 );
 		await page.goto( `${ PAGE }&tab=settings` );
 		await expect( page.locator( '#bto-repo' ) ).toHaveValue( '' );
 	} );

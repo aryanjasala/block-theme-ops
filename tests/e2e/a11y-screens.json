@@ -32,12 +32,6 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Block Theme Ops backups",
-      "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
-      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=backups",
-      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
-    },
-    {
       "name": "Appearance > Block Theme Ops settings with a GitHub connection",
       "setup": [
         { "js": "helpers.js", "call": "resetState" },
@@ -117,14 +111,14 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Block Theme Ops backups with a reset and an import",
+      "name": "Appearance > Block Theme Ops with the Undo card: a reset and an import",
       "setup": [
         { "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" },
         { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
         ["block-theme-ops", "reset", "templates/page", "--yes"],
         ["eval", "$p = AryanX\\Axle\\BlockThemeOps\\Plugin::instance()->importer(); $p->apply( array( 'theme' => 'corner-bakery', 'manifest' => array(), 'rejected' => array(), 'files' => array( 'parts/footer.html' => '<!-- wp:paragraph --><p>New footer</p><!-- /wp:paragraph -->' ) ) );"]
       ],
-      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=backups",
+      "url": "/wp-admin/themes.php?page=block-theme-ops",
       "steps": [{ "waitFor": ".bto-backups" }],
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },

@@ -117,8 +117,7 @@ final class BlockMerge {
 			if ( empty( $block['blockName'] ) && '' === trim( (string) ( $block['innerHTML'] ?? '' ) ) && empty( $block['innerBlocks'] ) ) {
 				continue;
 			}
-			$block['innerBlocks'] = self::clean( (array) ( $block['innerBlocks'] ?? array() ) );
-			$out[]                = $block;
+			$out[] = $block;
 		}
 
 		return $out;
@@ -555,19 +554,14 @@ final class BlockMerge {
 	 * @return array
 	 */
 	private static function canonical( array $block, bool $children ): array {
+		// The HTML around the children. Where the children sit, and the whitespace between them, is not content.
 		$parts = array();
 		foreach ( (array) ( $block['innerContent'] ?? array( $block['innerHTML'] ?? '' ) ) as $chunk ) {
-			$parts[] = null === $chunk ? null : trim( (string) preg_replace( '/\s+/', ' ', (string) $chunk ) );
+			$chunk = null === $chunk ? '' : trim( (string) preg_replace( '/\s+/', ' ', (string) $chunk ) );
+			if ( '' !== $chunk ) {
+				$parts[] = $chunk;
+			}
 		}
-		// Whitespace between children is not content.
-		$parts = array_values(
-			array_filter(
-				$parts,
-				static function ( $chunk ): bool {
-					return null === $chunk || '' !== $chunk;
-				}
-			)
-		);
 
 		$data = array(
 			'n' => $block['blockName'] ?? null,

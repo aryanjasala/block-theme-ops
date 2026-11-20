@@ -254,6 +254,18 @@ final class BlockMergeTest extends TestCase {
 		$this->assertSame( self::norm( self::group( self::p( 'Stable, site' ) . self::group( self::p( 'Target by theme' ), array(), 'wp-block-group inner' ) ) ), $choice['markup'] );
 	}
 
+	public function test_a_child_the_theme_adds_to_a_group_is_one_change_not_a_changed_group(): void {
+		$base   = self::group( '<!-- wp:site-title /-->' . "\n\n" . self::p( 'Tagline' ) );
+		$ours   = self::group( '<!-- wp:site-title /-->' . "\n\n" . self::p( 'Tagline, site' ) );
+		$theirs = self::group( '<!-- wp:site-title /-->' . "\n\n" . '<!-- wp:navigation /-->' . "\n\n" . self::p( 'Tagline' ) );
+
+		$result = $this->run_merge( $base, $ours, $theirs );
+
+		$this->assertTrue( $result['resolved'] );
+		$this->assertCount( 1, $result['applied'] );
+		$this->assertSame( array( 'added', 'core/navigation' ), array( $result['applied'][0]['action'], $result['applied'][0]['name'] ) );
+	}
+
 	public function test_a_wrapper_changed_by_the_theme_and_children_changed_by_the_site_merge(): void {
 		$base   = self::group( self::p( 'Inside' ), array( 'tagName' => 'div' ) );
 		$ours   = self::group( self::p( 'Inside, site' ), array( 'tagName' => 'div' ) );
