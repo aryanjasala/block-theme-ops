@@ -42,6 +42,50 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
     {
+      "name": "Appearance > Block Theme Ops merge a theme update, nothing to choose",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" }
+      ],
+      "exclude": [".bto-merge-frame"],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&item={ids.header}&merge=1",
+      "steps": [{ "waitFor": ".bto-merge-frame" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Block Theme Ops merge a theme update, one conflict to choose",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
+        { "js": "helpers.js", "call": "editThemeFile", "args": ["parts/header.html", "Fresh bread every morning.", "Fresh bread, baked at dawn."] }
+      ],
+      "exclude": [".bto-merge-frame"],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&item={ids.header}&merge=1",
+      "steps": [{ "waitFor": ".bto-conflict" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Block Theme Ops merge with the conflict chosen",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
+        { "js": "helpers.js", "call": "editThemeFile", "args": ["parts/header.html", "Fresh bread every morning.", "Fresh bread, baked at dawn."] }
+      ],
+      "exclude": [".bto-merge-frame"],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&item={ids.header}&merge=1&choice%5Bc0.1%5D=theirs",
+      "steps": [{ "waitFor": ".bto-merge-frame" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Block Theme Ops settings with GitHub not set up",
+      "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=settings",
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
+    },
+    {
       "name": "Dashboard notice after a theme update changed an edited part",
       "setup": [
         { "js": "helpers.js", "call": "resetState" },

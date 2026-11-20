@@ -1478,7 +1478,10 @@ final class DriftPage implements Service {
 			</table>
 			</section>
 
-			<?php $github_used = '' !== (string) $settings['repo'] || '' !== $source; ?>
+			<?php
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Navigation only.
+			$github_used = '' !== (string) $settings['repo'] || '' !== $source || ! empty( $_GET['github'] );
+			?>
 			<details class="axle-card bto-github"<?php echo $github_used ? ' open' : ''; ?>>
 			<summary class="axle-card__title bto-github__summary"><?php esc_html_e( 'GitHub pull requests', 'block-theme-ops' ); ?><?php echo $github_used ? '' : ' <span class="axle-muted">' . esc_html__( '(not used, open to set up)', 'block-theme-ops' ) . '</span>'; ?></summary>
 			<p><?php esc_html_e( 'Send Site Editor changes to the theme\'s repository as a pull request, so they end up in the theme files. Only the files you export are sent, and only when you ask.', 'block-theme-ops' ); ?></p>
@@ -2041,7 +2044,7 @@ final class DriftPage implements Service {
 					<a href="<?php echo esc_url( (string) $notice['url'] ); ?>" class="bto-pr-link" target="_blank" rel="noopener noreferrer"><?php echo esc_html( (string) $notice['url'] ); ?></a>
 				<?php endif; ?>
 				<?php if ( ! empty( $notice['settings'] ) ) : ?>
-					<a href="<?php echo esc_url( self::url( array( 'tab' => 'settings' ) ) ); ?>" class="bto-settings-link"><?php esc_html_e( 'Open the GitHub settings', 'block-theme-ops' ); ?></a>
+					<a href="<?php echo esc_url( self::url( array( 'tab' => 'settings', 'github' => 1 ) ) ); ?>" class="bto-settings-link"><?php esc_html_e( 'Open the GitHub settings', 'block-theme-ops' ); ?></a>
 				<?php endif; ?>
 			</p>
 			<?php if ( ! empty( $notice['undo'] ) ) : ?>
@@ -2178,7 +2181,7 @@ final class DriftPage implements Service {
 		printf(
 			/* translators: %s: link to the Settings tab. */
 			esc_html__( 'Pull requests need a repository and a token. Set them up under %s first.', 'block-theme-ops' ),
-			'<a href="' . esc_url( self::url( array( 'tab' => 'settings' ) ) ) . '">' . esc_html__( 'Settings', 'block-theme-ops' ) . '</a>'
+			'<a href="' . esc_url( self::url( array( 'tab' => 'settings', 'github' => 1 ) ) ) . '">' . esc_html__( 'Settings', 'block-theme-ops' ) . '</a>'
 		);
 	}
 

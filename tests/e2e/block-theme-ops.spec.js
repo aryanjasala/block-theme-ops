@@ -247,7 +247,7 @@ test.describe( 'Block Theme Ops', () => {
 		installMocks();
 		const id = await customize( rest, 'template-parts', 'header', editedHeader() );
 
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await page.locator( '#bto-repo' ).fill( 'https://github.com/acme/corner-bakery-site' );
 		await page.locator( '#bto-path' ).fill( '/wp-content/themes/corner-bakery/' );
 		await page.locator( '#bto-token' ).fill( 'test-token' );
@@ -297,7 +297,7 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( page.locator( '.notice-error.bto-notice' ) ).toContainText( 'GitHub refused the request: Bad credentials (HTTP 401' );
 
 		// The token can be removed.
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await page.getByLabel( 'Remove the saved token' ).check();
 		await page.getByRole( 'button', { name: 'Save settings' } ).click();
 		await expect( page.locator( '.bto-token-status' ) ).toHaveCount( 0 );
@@ -307,7 +307,7 @@ test.describe( 'Block Theme Ops', () => {
 	test( 'a theme update raises the notice, the menu count, the email and Site Health, once', async ( { page, rest } ) => {
 		installMocks();
 		await customize( rest, 'template-parts', 'header', editedHeader() );
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await page.locator( '#bto-notify' ).check();
 		await page.getByRole( 'button', { name: 'Save settings' } ).click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Settings saved.' );
@@ -567,7 +567,7 @@ test.describe( 'Block Theme Ops', () => {
 		editThemeFile( 'parts/header.html', ...HEADER_DEPLOY );
 
 		const listed = await rest( 'GET', '/wp-abilities/v1/abilities?category=block-theme-ops' );
-		expect( listed.body.map( ( ability ) => ability.name ).sort() ).toEqual( [ 'block-theme-ops/apply-import', 'block-theme-ops/export-changes', 'block-theme-ops/get-drift-report', 'block-theme-ops/get-item-diff', 'block-theme-ops/get-locks', 'block-theme-ops/preview-import', 'block-theme-ops/reset-to-theme', 'block-theme-ops/set-locks', 'block-theme-ops/undo-change' ] );
+		expect( listed.body.map( ( ability ) => ability.name ).sort() ).toEqual( [ 'block-theme-ops/apply-import', 'block-theme-ops/export-changes', 'block-theme-ops/get-drift-report', 'block-theme-ops/get-item-diff', 'block-theme-ops/get-locks', 'block-theme-ops/merge-theme-update', 'block-theme-ops/preview-import', 'block-theme-ops/preview-merge', 'block-theme-ops/reset-to-theme', 'block-theme-ops/set-locks', 'block-theme-ops/undo-change' ] );
 		const reset = listed.body.find( ( ability ) => 'block-theme-ops/reset-to-theme' === ability.name );
 		expect( reset.meta.annotations ).toMatchObject( { readonly: false, destructive: true } );
 
@@ -643,7 +643,7 @@ test.describe( 'Block Theme Ops', () => {
 
 		await page.goto( `${ PAGE }` );
 		await expect( page.locator( '.bto-backups' ) ).toHaveCount( 0 );
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await expect( page.locator( '#bto-repo' ) ).toHaveValue( '' );
 	} );
 } );

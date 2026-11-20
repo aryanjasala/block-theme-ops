@@ -27,6 +27,8 @@
 
 .bto-toolbar {
 	margin-top: 8px;
+	/* The status views above are floated by core; without this the toolbar squeezes in beside them on a phone. */
+	clear: both;
 }
 
 .bto-confirm-slot:empty {
@@ -228,4 +230,18 @@
 
 .bto-undo-row .button-link {
 	margin: 0;
+}
+
+/* Phones: the bulk toolbar wraps and the file field stays inside the card. */
+
+.bto-toolbar {
+	flex-wrap: wrap;
+}
+
+.bto-toolbar select {
+	max-width: 100%;
+}
+
+.bto-upload input[type="file"] {
+	max-width: 100%;
 }
