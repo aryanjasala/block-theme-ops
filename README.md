@@ -16,7 +16,7 @@
   <a href="https://github.com/aryanjasala/block-theme-ops/actions/workflows/plugin-check.yml"><img src="https://github.com/aryanjasala/block-theme-ops/actions/workflows/plugin-check.yml/badge.svg" alt="Plugin Check"></a>
 </p>
 
-<p align="center">Find the Site Editor changes that override your theme files, see what a theme deploy left behind, then reset them, send them to Git, import them on another site or lock them.</p>
+<p align="center">Find the Site Editor changes that override your theme files, merge what a theme update changed into them without losing yours, or reset them, send them to Git, import them on another site or lock them.</p>
 
 <p align="center">
   <img src=".github/media/demo.gif" alt="A theme deploy left an edited header behind: the notice, the three-way diff, a pull request, then reset and undo" width="880">
@@ -24,7 +24,7 @@
 
 ---
 
-When someone edits a template, template part or the global styles in the Site Editor, WordPress saves a copy in the database and the site ignores the theme file from then on. Deploy a new version of the theme and nothing tells you the site still shows the old one. Block Theme Ops lists every one of those copies, tells you which ones now hide a newer theme file, and resets them or sends them to the theme's Git repository. It also moves the changes made on staging to production, with a preview first and one Undo, and locks the templates that belong to Git so nobody edits them in the Site Editor by mistake.
+When someone edits a template, template part or the global styles in the Site Editor, WordPress saves a copy in the database and the site ignores the theme file from then on. Deploy a new version of the theme and nothing tells you the site still shows the old one. Block Theme Ops lists every one of those copies, tells you which ones now hide a newer theme file, and merges the theme's new version into your changes, block by block, or resets them or sends them to the theme's Git repository. It also moves the changes made on staging to production, with a preview first and one Undo, and locks the templates that belong to Git so nobody edits them in the Site Editor by mistake.
 
 > [!NOTE]
 > Free and open source under the GPL. No pro version, no upsells, no ads in wp-admin, no tracking. And it stays that way.
@@ -34,12 +34,14 @@ When someone edits a template, template part or the global styles in the Site Ed
 - **Every Site Editor change** of the active theme (and its parent): templates, template parts and global styles, with the theme file, who saved it and when
 - **Drift status**: theme changed (the file changed after the edit, so the site ignores it), customized, database only, identical
 - **Three-way view**: the theme file at the time of the edit, the theme file now and the database copy, as diffs
+- **Merge a theme update** into a customized template or part: the theme's changes and yours are combined block by block. Changes only one side made merge on their own, a block both sides changed asks you which version to keep, and you see the result rendered before anything is saved. One Undo puts your earlier copy back
+- **In the Site Editor**: open a template or part whose theme file changed since you saved it and a notice says so, with **See what the theme changed**, **Merge** and **Reset**
 - **Reset to theme file** with a backup, and **Undo** for 30 days. **Keep** hides an item until its file changes again. Identical copies reset in bulk
 - **After a theme update**, and once a day for Git or SFTP deploys: an admin notice, a Site Health check and an optional email
 - **Export** a zip laid out like the theme, or open a **GitHub pull request** with the changes as one commit
 - **WP-CLI** for every action, with `wp block-theme-ops check` exiting 1 for CI and deploy scripts, and **abilities** for AI agents on WordPress 6.9+
 - **Import** the zip of another site (staging to production): a preview per item (new, changed, identical or for another theme), a three-way view where this site has its own change, navigation menus mapped by slug, the site address rewritten and missing media listed. One Undo for 30 days
-- **Locks** stop Site Editor and REST saves of chosen templates, template parts or the global styles, on production by default, with a message that says where to change them and a notice when the Site Editor opens
+- **Locks** stop Site Editor and REST saves of chosen templates, template parts or the global styles, and of the navigation menus a locked part uses. They are on in production by default, follow Staging Guard's environment on copies, and say where to change things when the Site Editor opens
 
 ## Install
 
@@ -62,6 +64,14 @@ Stop a deploy, or fail CI, when Site Editor changes hide the new theme files:
 wp block-theme-ops check || wp block-theme-ops status --status=theme-changed
 wp block-theme-ops diff parts/header --against=theme
 wp block-theme-ops export --pr
+```
+
+Merge the theme's new version into a customized template, keeping your change:
+
+```sh
+wp block-theme-ops merge parts/header --dry-run
+wp block-theme-ops merge parts/header --all-ours --yes
+wp block-theme-ops undo 124
 ```
 
 Move the changes made on staging to production, then undo if it is wrong:
@@ -89,7 +99,7 @@ define( 'BLOCK_THEME_OPS_GITHUB_TOKEN', 'github_pat_...' );
 
 <table>
   <tr>
-    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-1.png" alt="Appearance > Theme Drift: counts per status and every Site Editor change of the active theme"><br><sub>Appearance > Theme Drift: counts per status and every Site Editor change of the active theme</sub></td>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-1.png" alt="Appearance > Block Theme Ops: counts per status and every Site Editor change of the active theme"><br><sub>Appearance > Block Theme Ops: counts per status and every Site Editor change of the active theme</sub></td>
     <td width="50%" valign="top"><img src=".wordpress-org/screenshot-2.png" alt="One template part: the database copy against the theme file now, and what the theme changed since the edit"><br><sub>One template part: the database copy against the theme file now, and what the theme changed since the edit</sub></td>
   </tr>
   <tr>
@@ -99,6 +109,13 @@ define( 'BLOCK_THEME_OPS_GITHUB_TOKEN', 'github_pat_...' );
   <tr>
     <td width="50%" valign="top"><img src=".wordpress-org/screenshot-5.png" alt="The Import tab: what a zip from another site would change, item by item"><br><sub>The Import tab: what a zip from another site would change, item by item</sub></td>
     <td width="50%" valign="top"><img src=".wordpress-org/screenshot-6.png" alt="The Locks tab: which templates cannot be saved from the Site Editor"><br><sub>The Locks tab: which templates cannot be saved from the Site Editor</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-7.png" alt="Merging a theme update: what merges on its own, a choice for the one conflict, and the result"><br><sub>Merging a theme update: what merges on its own, a choice for the one conflict, and the result</sub></td>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-8.png" alt="The Site Editor says the theme changed a template, with the diff, Merge and Reset"><br><sub>The Site Editor says the theme changed a template, with the diff, Merge and Reset</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-9.png" alt="Undo for a merge and a reset, in the list under the items"><br><sub>Undo for a merge and a reset, in the list under the items</sub></td>
   </tr>
 </table>
 
@@ -125,6 +142,9 @@ src/
 ├── Snapshots.php          snapshot of the theme file on every save
 ├── Markup.php             compares and pretty-prints block markup
 ├── StylesJson.php         the global styles layer on top of theme.json
+├── BlockMerge.php         the three-way merge of block trees, pure
+├── Merger.php             plans, applies and undoes a merge
+├── Rest.php               the route behind the Site Editor drift notice
 ├── Operations.php         reset, undo and keep
 ├── Backups.php            backups behind Undo
 ├── Alerts.php             items waiting for review
@@ -136,10 +156,10 @@ src/
 ├── Diff.php               unified diffs for WP-CLI and abilities
 ├── Abilities.php          abilities for AI agents (WordPress 6.9+)
 ├── Privacy.php            policy text, export and erase
-├── Admin/                 Appearance > Theme Drift and the admin notice
+├── Admin/                 Appearance > Block Theme Ops and the admin notice
 ├── Health/SiteHealth.php  Site Health test
 └── Cli/Command.php        wp block-theme-ops
-assets/                    admin.css, admin.js, editor-lock.js
+assets/                    admin.css, admin.js, editor-lock.js, editor-drift.js
 tests/
 ├── Unit/                  PHPUnit
 └── e2e/                   Playwright specs, a small test theme and a GitHub stand-in

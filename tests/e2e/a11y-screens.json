@@ -4,13 +4,13 @@
   "exclude": [],
   "screens": [
     {
-      "name": "Appearance > Theme Drift on a theme with no Site Editor changes",
+      "name": "Appearance > Block Theme Ops on a theme with no Site Editor changes",
       "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
       "url": "/wp-admin/themes.php?page=block-theme-ops",
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift with every status",
+      "name": "Appearance > Block Theme Ops with every status",
       "setup": [
         { "js": "helpers.js", "call": "resetState" },
         { "js": "helpers.js", "call": "installTheme" },
@@ -32,18 +32,56 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift backups",
-      "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
-      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=backups",
-      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
-    },
-    {
-      "name": "Appearance > Theme Drift settings with a GitHub connection",
+      "name": "Appearance > Block Theme Ops settings with a GitHub connection",
       "setup": [
         { "js": "helpers.js", "call": "resetState" },
         { "js": "helpers.js", "call": "installTheme" },
         ["eval", "update_option( 'block_theme_ops_settings', array( 'notify' => true, 'repo' => 'corner-bakery/website', 'branch' => 'main', 'path' => 'wp-content/themes/corner-bakery', 'token' => 'test-token' ), false );"]
       ],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=settings",
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Block Theme Ops merge a theme update, nothing to choose",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" }
+      ],
+      "exclude": [".bto-merge-frame"],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&item={ids.header}&merge=1",
+      "steps": [{ "waitFor": ".bto-merge-frame" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Block Theme Ops merge a theme update, one conflict to choose",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
+        { "js": "helpers.js", "call": "editThemeFile", "args": ["parts/header.html", "Fresh bread every morning.", "Fresh bread, baked at dawn."] }
+      ],
+      "exclude": [".bto-merge-frame"],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&item={ids.header}&merge=1",
+      "steps": [{ "waitFor": ".bto-conflict" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Block Theme Ops merge with the conflict chosen",
+      "setup": [
+        { "js": "helpers.js", "call": "resetState" },
+        { "js": "helpers.js", "call": "installTheme" },
+        { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
+        { "js": "helpers.js", "call": "editThemeFile", "args": ["parts/header.html", "Fresh bread every morning.", "Fresh bread, baked at dawn."] }
+      ],
+      "exclude": [".bto-merge-frame"],
+      "url": "/wp-admin/themes.php?page=block-theme-ops&item={ids.header}&merge=1&choice%5Bc0.1%5D=theirs",
+      "steps": [{ "waitFor": ".bto-merge-frame" }],
+      "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
+    },
+    {
+      "name": "Appearance > Block Theme Ops settings with GitHub not set up",
+      "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
       "url": "/wp-admin/themes.php?page=block-theme-ops&tab=settings",
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
@@ -60,19 +98,19 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift import, upload a zip",
+      "name": "Appearance > Block Theme Ops import, upload a zip",
       "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
       "url": "/wp-admin/themes.php?page=block-theme-ops&tab=import",
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift import, upload that expired",
+      "name": "Appearance > Block Theme Ops import, upload that expired",
       "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }],
       "url": "/wp-admin/themes.php?page=block-theme-ops&tab=import&review=aaaaaaaaaaaaaaaaaaaa",
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift import preview with new, changed and overwriting items",
+      "name": "Appearance > Block Theme Ops import preview with new, changed and overwriting items",
       "setup": [
         { "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" },
         { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
@@ -83,7 +121,7 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift import preview, in-place confirmation",
+      "name": "Appearance > Block Theme Ops import preview, in-place confirmation",
       "setup": [
         { "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" },
         ["eval", "$d = array( 'theme' => 'corner-bakery', 'manifest' => array(), 'rejected' => array( 'functions.php' => 'It is not a template, a template part or theme.json.' ), 'files' => array( 'parts/header.html' => '<!-- wp:paragraph --><p>Staging header</p><!-- /wp:paragraph -->', 'parts/footer.html' => '<!-- wp:paragraph --><p>New footer</p><!-- /wp:paragraph -->', 'theme.json' => '{\"version\":3,\"styles\":{\"color\":{\"background\":\"#f4ecdf\"}}}' ) ); set_transient( 'block_theme_ops_import_1_abcdefghijklmnopqrst', $d, HOUR_IN_SECONDS );"]
@@ -93,7 +131,7 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift import preview for another theme",
+      "name": "Appearance > Block Theme Ops import preview for another theme",
       "setup": [
         { "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" },
         ["eval", "$d = array( 'theme' => 'other-theme', 'manifest' => array(), 'rejected' => array( 'functions.php' => 'It is not a template, a template part or theme.json.' ), 'files' => array( 'parts/header.html' => '<!-- wp:paragraph --><p>Staging header</p><!-- /wp:paragraph -->', 'parts/footer.html' => '<!-- wp:paragraph --><p>New footer</p><!-- /wp:paragraph -->', 'theme.json' => '{\"version\":3,\"styles\":{\"color\":{\"background\":\"#f4ecdf\"}}}' ) ); set_transient( 'block_theme_ops_import_1_abcdefghijklmnopqrst', $d, HOUR_IN_SECONDS );"]
@@ -103,33 +141,33 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift locks",
+      "name": "Appearance > Block Theme Ops locks",
       "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }, ["block-theme-ops", "lock", "parts/header", "styles"]],
       "url": "/wp-admin/themes.php?page=block-theme-ops&tab=locks",
       "steps": [{ "waitFor": ".bto-locks-table" }],
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift locks with everything from the theme locked and an item with a Site Editor copy",
+      "name": "Appearance > Block Theme Ops locks with everything from the theme locked and an item with a Site Editor copy",
       "setup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" }, { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" }, ["block-theme-ops", "lock", "--all"]],
       "url": "/wp-admin/themes.php?page=block-theme-ops&tab=locks",
       "steps": [{ "waitFor": ".bto-locks-table" }],
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift backups with a reset and an import",
+      "name": "Appearance > Block Theme Ops with the Undo card: a reset and an import",
       "setup": [
         { "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" },
         { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" },
         ["block-theme-ops", "reset", "templates/page", "--yes"],
         ["eval", "$p = AryanX\\Axle\\BlockThemeOps\\Plugin::instance()->importer(); $p->apply( array( 'theme' => 'corner-bakery', 'manifest' => array(), 'rejected' => array(), 'files' => array( 'parts/footer.html' => '<!-- wp:paragraph --><p>New footer</p><!-- /wp:paragraph -->' ) ) );"]
       ],
-      "url": "/wp-admin/themes.php?page=block-theme-ops&tab=backups",
+      "url": "/wp-admin/themes.php?page=block-theme-ops",
       "steps": [{ "waitFor": ".bto-backups" }],
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift with a reset asked about in place",
+      "name": "Appearance > Block Theme Ops with a reset asked about in place",
       "setup": [
         { "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" },
         { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" }
@@ -139,7 +177,7 @@
       "cleanup": [{ "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "unseedDemo" }, ["theme", "activate", "{theme}"]]
     },
     {
-      "name": "Appearance > Theme Drift with a status that has no items",
+      "name": "Appearance > Block Theme Ops with a status that has no items",
       "setup": [
         { "js": "helpers.js", "call": "resetState" }, { "js": "helpers.js", "call": "installTheme" },
         { "js": "helpers.js", "call": "seedDemo", "args": ["@rest"], "save": "ids" }

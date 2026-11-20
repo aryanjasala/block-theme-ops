@@ -97,6 +97,13 @@ final class Plugin {
 	private Checker $checker;
 
 	/**
+	 * Theme update merges.
+	 *
+	 * @var Merger
+	 */
+	private Merger $merger;
+
+	/**
 	 * Starts the plugin. Runs on `plugins_loaded`.
 	 */
 	public static function boot(): void {
@@ -127,7 +134,8 @@ final class Plugin {
 		$this->alerts     = new Alerts();
 		$this->importer   = new Importer( $this->drift, $this->backups, $this->alerts );
 		$this->locks      = new Locks( $themes, $this->settings );
-		$this->operations = new Operations( $this->drift, $this->backups, $this->snapshots, $this->alerts, $this->importer );
+		$this->merger     = new Merger( $this->drift, $this->backups, $this->snapshots, $this->alerts );
+		$this->operations = new Operations( $this->drift, $this->backups, $this->snapshots, $this->alerts, $this->importer, $this->merger );
 		$this->exporter   = new Exporter( $this->drift, $this->settings );
 		$this->checker    = new Checker( $this->drift, $this->snapshots, $this->backups, $this->alerts, $this->settings );
 	}
@@ -169,6 +177,15 @@ final class Plugin {
 	}
 
 	/**
+	 * Merge of a theme update into a customized template, for other plugins.
+	 *
+	 * @return Merger
+	 */
+	public function merger(): Merger {
+		return $this->merger;
+	}
+
+	/**
 	 * Locks, for other plugins.
 	 *
 	 * @return Locks
@@ -195,11 +212,12 @@ final class Plugin {
 			$this->backups,
 			$this->checker,
 			$this->locks,
-			new DriftPage( $this->drift, $this->operations, $this->exporter, $this->backups, $this->settings, $this->alerts, $this->importer, $this->locks ),
+			new DriftPage( $this->drift, $this->operations, $this->exporter, $this->backups, $this->settings, $this->alerts, $this->importer, $this->locks, $this->merger ),
+			new Rest( $this->drift, $this->merger ),
 			new Notice( $this->drift, $this->alerts ),
 			new SiteHealth( $this->drift, $this->locks ),
 			new Privacy(),
-			new Abilities( $this->drift, $this->operations, $this->exporter, $this->importer, $this->locks ),
+			new Abilities( $this->drift, $this->operations, $this->exporter, $this->importer, $this->locks, $this->merger ),
 		);
 
 		add_action( 'admin_init', array( $this->settings, 'protect_token' ) );
@@ -209,7 +227,7 @@ final class Plugin {
 		}
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			\WP_CLI::add_command( 'block-theme-ops', new Command( $this->drift, $this->operations, $this->exporter, $this->backups, $this->checker, $this->importer, $this->locks ) );
+			\WP_CLI::add_command( 'block-theme-ops', new Command( $this->drift, $this->operations, $this->exporter, $this->backups, $this->checker, $this->importer, $this->locks, $this->merger ) );
 		}
 	}
 }

@@ -7,6 +7,7 @@
 
 namespace AryanX\Axle\BlockThemeOps;
 
+use AryanX\Axle\BlockThemeOps\Admin\AxleUi;
 use AryanX\Axle\BlockThemeOps\Admin\DriftPage;
 use const AryanX\Axle\BlockThemeOps\PLUGIN_FILE;
 use const AryanX\Axle\BlockThemeOps\VERSION;
@@ -28,6 +29,13 @@ class Locks implements Service {
 	 * Environment types WordPress knows.
 	 */
 	public const ENVIRONMENTS = array( 'production', 'staging', 'development', 'local' );
+
+	/**
+	 * Navigation menus used by locked items, read once per request.
+	 *
+	 * @var array<int, string>|null
+	 */
+	private ?array $navigation_cache = null;
 
 	/**
 	 * Themes.
@@ -71,7 +79,7 @@ class Locks implements Service {
 		/**
 		 * Filters the capability needed to lock and unlock templates on the Locks tab and in abilities.
 		 *
-		 * @param string $capability Default the same as Theme Drift itself, edit_theme_options.
+		 * @param string $capability Default the same as Block Theme Ops itself, edit_theme_options.
 		 */
 		$capability = (string) apply_filters( 'block_theme_ops_lock_capability', DriftPage::capability() );
 
@@ -169,7 +177,7 @@ class Locks implements Service {
 		$default = $this->get()['environments'];
 
 		/**
-		 * Filters the environment types where locks are enforced, by `wp_get_environment_type()`.
+		 * Filters the environment types where locks are enforced, by the environment type Axle reports: `wp_get_environment_type()`, unless Staging Guard says this site is a copy.
 		 *
 		 * @param string[] $environments Default production only, or what is chosen on the Locks tab.
 		 */
@@ -184,9 +192,8 @@ class Locks implements Service {
 	 * @return bool
 	 */
 	public function enforced(): bool {
-		$type = function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production';
-
-		return in_array( $type, $this->environments(), true );
+		// Staging Guard answers this filter on copies it marks as staging, so locks follow it.
+		return in_array( AxleUi::environment_type(), $this->environments(), true );
 	}
 
 	/**
@@ -326,6 +333,119 @@ class Locks implements Service {
 	}
 
 	/**
+	 * Navigation menus (`wp_navigation` posts) used by locked templates and template parts.
+	 *
+	 * A locked header keeps its menu in a `wp_navigation` post, which the Site
+	 * Editor saves through its own route, so the menu is locked with the part.
+	 *
+	 * @return array<int, string> Navigation post ID => key of a locked item that uses it.
+	 */
+	public function navigation_ids(): array {
+		if ( null !== $this->navigation_cache ) {
+			return $this->navigation_cache;
+		}
+
+		$found = array();
+		if ( function_exists( 'get_block_template' ) && $this->any() ) {
+			$keys = array();
+			foreach ( $this->theme_items() as $item ) {
+				if ( Themes::GLOBAL_STYLES !== $item['type'] && $this->is_locked( $item['type'], $item['slug'] ) ) {
+					$keys[] = $item['key'];
+				}
+			}
+			$keys = array_unique( array_merge( $keys, array_filter( $this->get()['items'], static fn( string $key ): bool => 'styles' !== $key ) ) );
+
+			foreach ( $keys as $key ) {
+				list( $folder, $slug ) = explode( '/', $key, 2 );
+				$type                  = 'parts' === $folder ? Themes::TEMPLATE_PART : Themes::TEMPLATE;
+				foreach ( $this->navigation_refs( $type, $slug, 0, array() ) as $ref ) {
+					$found[ $ref ] = $found[ $ref ] ?? $key;
+				}
+			}
+		}
+
+		/**
+		 * Filters the navigation menus that locks cover.
+		 *
+		 * @param array<int, string> $ids Navigation post ID => key of the locked item that uses it.
+		 */
+		$filtered = apply_filters( 'block_theme_ops_locked_navigation_ids', $found );
+		$ids      = array();
+		foreach ( (array) $filtered as $id => $key ) {
+			if ( (int) $id > 0 ) {
+				$ids[ (int) $id ] = (string) $key;
+			}
+		}
+
+		$this->navigation_cache = $ids;
+
+		return $ids;
+	}
+
+	/**
+	 * Navigation post IDs that a template or part shows, including the parts a template includes.
+	 *
+	 * @param string   $type    Post type.
+	 * @param string   $slug    Slug.
+	 * @param int      $depth   How deep parts are followed.
+	 * @param string[] $visited Items already read, to stop loops.
+	 * @return int[]
+	 */
+	private function navigation_refs( string $type, string $slug, int $depth, array $visited ): array {
+		$id = $type . '/' . $slug;
+		if ( $depth > 3 || in_array( $id, $visited, true ) ) {
+			return array();
+		}
+		$visited[] = $id;
+
+		$template = get_block_template( $this->themes->stylesheet() . '//' . $slug, $type );
+		if ( ! $template || empty( $template->content ) ) {
+			return array();
+		}
+
+		return $this->refs_in( parse_blocks( (string) $template->content ), $depth, $visited );
+	}
+
+	/**
+	 * Navigation post IDs in a block tree.
+	 *
+	 * @param array[]  $blocks  Blocks.
+	 * @param int      $depth   Depth of parts followed so far.
+	 * @param string[] $visited Items already read.
+	 * @return int[]
+	 */
+	private function refs_in( array $blocks, int $depth, array $visited ): array {
+		$refs = array();
+		foreach ( $blocks as $block ) {
+			$name = (string) ( $block['blockName'] ?? '' );
+			if ( 'core/navigation' === $name && ! empty( $block['attrs']['ref'] ) ) {
+				$refs[] = (int) $block['attrs']['ref'];
+			} elseif ( 'core/template-part' === $name && ! empty( $block['attrs']['slug'] ) ) {
+				$refs = array_merge( $refs, $this->navigation_refs( Themes::TEMPLATE_PART, sanitize_title( (string) $block['attrs']['slug'] ), $depth + 1, $visited ) );
+			}
+			if ( ! empty( $block['innerBlocks'] ) ) {
+				$refs = array_merge( $refs, $this->refs_in( (array) $block['innerBlocks'], $depth, $visited ) );
+			}
+		}
+
+		return array_values( array_unique( $refs ) );
+	}
+
+	/**
+	 * The locked item a save of a navigation menu would change, or an empty string.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return string Item key.
+	 */
+	private function navigation_target( \WP_REST_Request $request ): string {
+		if ( ! preg_match( '#^/wp/v2/navigation/(\d+)(?:/|$)#', (string) $request->get_route(), $found ) ) {
+			return '';
+		}
+
+		return $this->navigation_ids()[ (int) $found[1] ] ?? '';
+	}
+
+	/**
 	 * Refuses a save of a locked item on the REST API.
 	 *
 	 * @param mixed $response Response so far.
@@ -339,11 +459,22 @@ class Locks implements Service {
 		}
 
 		$target = $this->target_of( $request );
-		if ( null === $target || ! $this->blocks( $target['type'], $target['slug'] ) ) {
-			return $response;
+		if ( null !== $target ) {
+			if ( ! $this->blocks( $target['type'], $target['slug'] ) ) {
+				return $response;
+			}
+			$key = Drift::key( $target['type'], $target['slug'] );
+		} else {
+			$key = $this->navigation_target( $request );
+			if ( '' === $key || ! $this->enforced() ) {
+				return $response;
+			}
+			$override = self::override_capability();
+			if ( '' !== $override && current_user_can( $override ) ) {
+				return $response;
+			}
 		}
 
-		$key  = Drift::key( $target['type'], $target['slug'] );
 		$link = $this->link( $key );
 
 		/**
@@ -396,9 +527,15 @@ class Locks implements Service {
 			'block-theme-ops-editor-lock',
 			'window.blockThemeOpsLocks = ' . wp_json_encode(
 				array(
-					'messages' => $messages,
-					'link'     => $this->link( 'styles' ),
-					'linkText' => __( 'Where to change it', 'block-theme-ops' ),
+					'messages'   => $messages,
+					'navigation' => (object) array_map(
+						static function ( string $key ): string {
+							return $key;
+						},
+						$this->navigation_ids()
+					),
+					'link'       => $this->link( 'styles' ),
+					'linkText'   => __( 'Where to change it', 'block-theme-ops' ),
 				)
 			) . ';',
 			'before'

@@ -50,6 +50,7 @@ function resetState() {
 		@unlink( WP_CONTENT_DIR . '/bto-github-mock.json' );
 		@unlink( WP_CONTENT_DIR . '/mu-plugins/bto-e2e.php' );
 		@unlink( WP_CONTENT_DIR . '/mu-plugins/bto-e2e-rtl.php' );
+		@unlink( WP_CONTENT_DIR . '/mu-plugins/bto-e2e-env.php' );
 	` );
 }
 
@@ -159,6 +160,21 @@ function installRtl() {
 }
 
 /**
+ * Makes this site report an environment type through the Axle filter, as Staging Guard does on a copy,
+ * while core's own type stays production.
+ *
+ * @param {string} type Environment type, or empty to remove the mock.
+ */
+function setAxleEnvironment( type ) {
+	if ( ! type ) {
+		wpEval( "@unlink( WP_CONTENT_DIR . '/mu-plugins/bto-e2e-env.php' );" );
+		return;
+	}
+	const php = `<?php\nadd_filter( 'axle_environment_type', function () { return '${ type }'; } );\n`;
+	wpEval( `wp_mkdir_p( WPMU_PLUGIN_DIR ); file_put_contents( WPMU_PLUGIN_DIR . '/bto-e2e-env.php', base64_decode( '${ Buffer.from( php ).toString( 'base64' ) }' ) );` );
+}
+
+/**
  * Requests the GitHub mock received, oldest first.
  *
  * @return {Object[]} method, path, auth and body of each.
@@ -197,4 +213,4 @@ function unseedDemo() {
 	wp( 'user', 'update', 'admin', '--display_name=admin' );
 }
 
-module.exports = { THEME, PAGE, installTheme, resetState, themeFile, writeThemeFile, editThemeFile, customize, customizeStyles, report, installMocks, installRtl, githubLog, seedDemo, unseedDemo };
+module.exports = { THEME, PAGE, installTheme, resetState, themeFile, writeThemeFile, editThemeFile, customize, customizeStyles, report, installMocks, installRtl, setAxleEnvironment, githubLog, seedDemo, unseedDemo };

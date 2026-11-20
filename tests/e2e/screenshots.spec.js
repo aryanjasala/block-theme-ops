@@ -2,7 +2,7 @@
 // Run on demand: npm run screenshots
 const { test, expect, wp, wpEval } = require( './utils' );
 const { prepareSite, shot } = require( './utils/media' );
-const { PAGE, installTheme, resetState, installMocks, seedDemo, unseedDemo } = require( './helpers' );
+const { PAGE, installTheme, resetState, installMocks, seedDemo, unseedDemo, editThemeFile } = require( './helpers' );
 
 test.describe.serial( 'Screenshots', () => {
 	test.use( { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 } );
@@ -28,7 +28,7 @@ test.describe.serial( 'Screenshots', () => {
 		wp( 'theme', 'activate', process.env.WP_THEME || 'twentytwentyfive' );
 	} );
 
-	test( '1: Theme Drift with every status', async ( { page } ) => {
+	test( '1: Block Theme Ops with every status', async ( { page } ) => {
 		await page.goto( PAGE );
 		await expect( page.locator( '.bto-table tbody tr' ) ).toHaveCount( 5 );
 		await shot( page, 1 );
@@ -78,5 +78,42 @@ test.describe.serial( 'Screenshots', () => {
 		await page.goto( `${ PAGE }&tab=locks` );
 		await expect( page.locator( '.bto-locks-table' ) ).toBeVisible();
 		await shot( page, 6 );
+	} );
+
+	test( '7: merging a theme update, with one conflict to choose', async ( { page } ) => {
+		// The theme also reworded the line the Site Editor change reworded: one conflict, and the new navigation merges on its own.
+		editThemeFile( 'parts/header.html', 'Fresh bread every morning.', 'Fresh bread, baked at dawn.' );
+		await page.goto( `${ PAGE }&item=${ ids.header }&merge=1` );
+		await expect( page.locator( '.bto-conflict' ) ).toHaveCount( 1 );
+		await page.getByLabel( 'Use the theme\'s version' ).check();
+		await page.getByRole( 'button', { name: 'Update the preview' } ).click();
+		await expect( page.locator( '.bto-merge-frame' ) ).toBeVisible();
+		await page.locator( '.bto-merge-summary' ).scrollIntoViewIfNeeded();
+		await shot( page, 7, { fullPage: true, clip: { x: 0, y: 0, width: 1280, height: 1500 } } );
+	} );
+
+	test( '8: the Site Editor says the theme changed a template', async ( { page } ) => {
+		await page.setViewportSize( { width: 1280, height: 720 } );
+		await page.goto( `/wp-admin/site-editor.php?postType=wp_template_part&postId=corner-bakery%2F%2Fheader&canvas=edit` );
+		const notice = page.locator( '.components-notice' ).filter( { hasText: 'The theme changed this since you saved your version' } );
+		await expect( notice ).toBeVisible( { timeout: 30_000 } );
+		const guide = page.getByRole( 'dialog', { name: /welcome to the site editor/i } );
+		if ( await guide.isVisible().catch( () => false ) ) {
+			await guide.getByRole( 'button', { name: 'Get started' } ).click();
+		}
+		await shot( page, 8 );
+	} );
+
+	test( '9: Undo after a merge and a reset', async ( { page } ) => {
+		await page.goto( `${ PAGE }&item=${ ids.header }&merge=1` );
+		await page.getByLabel( 'Use the theme\'s version' ).check();
+		await page.getByRole( 'button', { name: 'Update the preview' } ).click();
+		await page.getByRole( 'button', { name: 'Merge', exact: true } ).click();
+		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Merged.' );
+		wp( 'block-theme-ops', 'reset', 'templates/page', '--yes' );
+		await page.goto( PAGE );
+		await expect( page.locator( '.bto-backups tbody tr' ) ).toHaveCount( 2 );
+		await page.locator( '#bto-undo' ).scrollIntoViewIfNeeded();
+		await shot( page, 9 );
 	} );
 } );

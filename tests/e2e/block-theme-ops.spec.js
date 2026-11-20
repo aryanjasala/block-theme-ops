@@ -16,7 +16,7 @@ const HEADER_DEPLOY = [ '<!-- wp:site-title /-->', '<!-- wp:site-title /-->\n\n\
 const editedHeader = () => themeFile( 'parts/header.html' ).replace( ...HEADER_EDIT );
 
 /**
- * Goes ahead with the question Theme Drift asks in place before a reset or a pull request.
+ * Goes ahead with the question Block Theme Ops asks in place before a reset or a pull request.
  *
  * @param {import('@playwright/test').Page} page Page.
  */
@@ -105,7 +105,6 @@ test.describe( 'Block Theme Ops', () => {
 		expect( backups ).toHaveLength( 1 );
 		expect( backups[ 0 ] ).toMatchObject( { key: 'parts/header', theme: THEME, reset_by: 'admin' } );
 
-		await page.getByRole( 'link', { name: 'Backups' } ).click();
 		await expect( page.locator( '.bto-backups tbody tr' ) ).toHaveCount( 1 );
 		await expect( page.locator( '.bto-backups' ) ).toContainText( 'parts/header' );
 		await page.getByRole( 'button', { name: 'Undo reset' } ).click();
@@ -248,7 +247,7 @@ test.describe( 'Block Theme Ops', () => {
 		installMocks();
 		const id = await customize( rest, 'template-parts', 'header', editedHeader() );
 
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await page.locator( '#bto-repo' ).fill( 'https://github.com/acme/corner-bakery-site' );
 		await page.locator( '#bto-path' ).fill( '/wp-content/themes/corner-bakery/' );
 		await page.locator( '#bto-token' ).fill( 'test-token' );
@@ -298,7 +297,7 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( page.locator( '.notice-error.bto-notice' ) ).toContainText( 'GitHub refused the request: Bad credentials (HTTP 401' );
 
 		// The token can be removed.
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await page.getByLabel( 'Remove the saved token' ).check();
 		await page.getByRole( 'button', { name: 'Save settings' } ).click();
 		await expect( page.locator( '.bto-token-status' ) ).toHaveCount( 0 );
@@ -308,7 +307,7 @@ test.describe( 'Block Theme Ops', () => {
 	test( 'a theme update raises the notice, the menu count, the email and Site Health, once', async ( { page, rest } ) => {
 		installMocks();
 		await customize( rest, 'template-parts', 'header', editedHeader() );
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await page.locator( '#bto-notify' ).check();
 		await page.getByRole( 'button', { name: 'Save settings' } ).click();
 		await expect( page.locator( '.bto-notice' ) ).toContainText( 'Settings saved.' );
@@ -370,7 +369,7 @@ test.describe( 'Block Theme Ops', () => {
 
 		await page.goto( '/wp-admin/themes.php' );
 		await expect( page.locator( '.block-theme-ops-notice' ) ).toContainText( 'Header (template part)' );
-		await page.locator( '.block-theme-ops-notice' ).getByRole( 'link', { name: 'Review in Theme Drift' } ).click();
+		await page.locator( '.block-theme-ops-notice' ).getByRole( 'link', { name: 'Review in Block Theme Ops' } ).click();
 		await expect( page ).toHaveURL( /status=theme-changed/ );
 		await expect( row( page, 'Header' ) ).toBeVisible();
 	} );
@@ -390,7 +389,7 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( page.locator( '#bto-diff-reset' ) ).toContainText( 'Reset throws the database copy away.' );
 		await expect( page.locator( '.bto-facts code' ) ).toHaveAttribute( 'dir', 'ltr' );
 		// The way back points the way the language reads.
-		await expect( page.locator( '.bto-back a' ) ).toHaveText( '→ Theme Drift' );
+		await expect( page.locator( '.bto-back a' ) ).toHaveText( '→ Block Theme Ops' );
 
 		await page.goto( `${ PAGE }&item=${ landing.body.wp_id }` );
 		await expect( page.locator( 'pre.bto-code' ) ).toHaveAttribute( 'dir', 'ltr' );
@@ -403,7 +402,7 @@ test.describe( 'Block Theme Ops', () => {
 		await customize( rest, 'templates', 'single', themeFile( 'templates/single.html' ).replace( '</main>', '<!-- wp:paragraph --><p>Thanks for reading.</p><!-- /wp:paragraph --></main>' ) );
 
 		await page.goto( PAGE );
-		await expect( page.getByRole( 'navigation', { name: 'Theme Drift sections' } ) ).toBeVisible();
+		await expect( page.getByRole( 'navigation', { name: 'Block Theme Ops sections' } ) ).toBeVisible();
 
 		// WCAG AA: 4.5:1 for the small code chips, on white and on the grey striped rows.
 		const ratios = await page.locator( '.bto-type code' ).evaluateAll( ( nodes ) => {
@@ -474,17 +473,17 @@ test.describe( 'Block Theme Ops', () => {
 		await expect( page.locator( '#bto-pr-hint' ) ).toHaveCount( 0 );
 	} );
 
-	test( 'Backups says up front when an item is back already or customized again', async ( { page, rest } ) => {
+	test( 'Undo says up front when an item is back already or customized again', async ( { page, rest } ) => {
 		await customize( rest, 'template-parts', 'header', editedHeader() );
 		wp( 'block-theme-ops', 'reset', 'parts/header', '--yes' );
 		const backup = JSON.parse( wp( 'block-theme-ops', 'backups', '--format=json' ) )[ 0 ].id;
 
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		await expect( page.locator( '.bto-backups' ).getByRole( 'button', { name: 'Undo reset' } ) ).toBeVisible();
 
 		// An undo in an activity log puts the same customization back.
 		await customize( rest, 'template-parts', 'header', editedHeader() );
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		const blocked = page.locator( `.bto-backup[data-id="${ backup }"] .bto-blocked` );
 		await expect( blocked ).toHaveAttribute( 'data-reason', 'restored' );
 		await expect( blocked ).toContainText( 'Back already' );
@@ -494,7 +493,7 @@ test.describe( 'Block Theme Ops', () => {
 
 		// Someone changes it again: that is a different message.
 		await customize( rest, 'template-parts', 'header', editedHeader().replace( 'and coffee', 'and cake' ) );
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		await expect( blocked ).toHaveAttribute( 'data-reason', 'customized' );
 		await expect( blocked ).toContainText( 'Customized again since' );
 		await expect( blocked ).toContainText( 'Someone customized this item again since the reset.' );
@@ -568,7 +567,7 @@ test.describe( 'Block Theme Ops', () => {
 		editThemeFile( 'parts/header.html', ...HEADER_DEPLOY );
 
 		const listed = await rest( 'GET', '/wp-abilities/v1/abilities?category=block-theme-ops' );
-		expect( listed.body.map( ( ability ) => ability.name ).sort() ).toEqual( [ 'block-theme-ops/apply-import', 'block-theme-ops/export-changes', 'block-theme-ops/get-drift-report', 'block-theme-ops/get-item-diff', 'block-theme-ops/get-locks', 'block-theme-ops/preview-import', 'block-theme-ops/reset-to-theme', 'block-theme-ops/set-locks', 'block-theme-ops/undo-change' ] );
+		expect( listed.body.map( ( ability ) => ability.name ).sort() ).toEqual( [ 'block-theme-ops/apply-import', 'block-theme-ops/export-changes', 'block-theme-ops/get-drift-report', 'block-theme-ops/get-item-diff', 'block-theme-ops/get-locks', 'block-theme-ops/merge-theme-update', 'block-theme-ops/preview-import', 'block-theme-ops/preview-merge', 'block-theme-ops/reset-to-theme', 'block-theme-ops/set-locks', 'block-theme-ops/undo-change' ] );
 		const reset = listed.body.find( ( ability ) => 'block-theme-ops/reset-to-theme' === ability.name );
 		expect( reset.meta.annotations ).toMatchObject( { readonly: false, destructive: true } );
 
@@ -589,7 +588,7 @@ test.describe( 'Block Theme Ops', () => {
 		expect( done.body.reset ).toEqual( [ { key: 'parts/header', backup_id: expect.any( Number ) } ] );
 		expect( wp( 'post', 'list', '--post_type=wp_template_part', '--format=count' ) ).toBe( '0' );
 
-		await page.goto( `${ PAGE }&tab=backups` );
+		await page.goto( `${ PAGE }` );
 		await expect( page.locator( '.bto-backups tbody tr' ) ).toHaveCount( 1 );
 	} );
 
@@ -642,9 +641,9 @@ test.describe( 'Block Theme Ops', () => {
 		expect( wp( 'post', 'get', String( id ), '--field=post_content' ) ).toContain( 'and coffee' );
 		expect( page_id ).toBeGreaterThan( 0 );
 
-		await page.goto( `${ PAGE }&tab=backups` );
-		await expect( page.locator( '.bto-empty' ) ).toContainText( 'No resets or imports to undo.' );
-		await page.goto( `${ PAGE }&tab=settings` );
+		await page.goto( `${ PAGE }` );
+		await expect( page.locator( '.bto-backups' ) ).toHaveCount( 0 );
+		await page.goto( `${ PAGE }&tab=settings&github=1` );
 		await expect( page.locator( '#bto-repo' ) ).toHaveValue( '' );
 	} );
 } );

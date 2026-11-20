@@ -36,8 +36,8 @@ class Backups implements Service {
 			self::POST_TYPE,
 			array(
 				'labels'           => array(
-					'name'          => __( 'Theme Drift backups', 'block-theme-ops' ),
-					'singular_name' => __( 'Theme Drift backup', 'block-theme-ops' ),
+					'name'          => __( 'Block Theme Ops backups', 'block-theme-ops' ),
+					'singular_name' => __( 'Block Theme Ops backup', 'block-theme-ops' ),
 				),
 				'public'           => false,
 				'show_ui'          => false,
@@ -70,11 +70,12 @@ class Backups implements Service {
 	/**
 	 * Saves a backup of a database item before it is reset.
 	 *
-	 * @param array    $item Item.
-	 * @param \WP_Post $post The template, template part or global styles post.
+	 * @param array    $item  Item.
+	 * @param \WP_Post $post  The template, template part or global styles post.
+	 * @param array    $extra More stored fields, such as `kind` for a merge.
 	 * @return int|\WP_Error Backup ID.
 	 */
-	public function create( array $item, \WP_Post $post ) {
+	public function create( array $item, \WP_Post $post, array $extra = array() ) {
 		$area = '';
 		if ( Themes::TEMPLATE_PART === $post->post_type ) {
 			$terms = get_the_terms( $post, 'wp_template_part_area' );
@@ -103,7 +104,7 @@ class Backups implements Service {
 				'file'   => (string) $item['file'],
 			),
 			'reset_at'         => time(),
-		);
+		) + $extra;
 
 		// Everything goes through wp_slash(): wp_insert_post() and post meta unslash, and block markup has backslashes.
 		$id = wp_insert_post(

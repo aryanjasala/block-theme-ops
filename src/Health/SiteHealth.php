@@ -15,7 +15,7 @@ use AryanX\Axle\BlockThemeOps\Service;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Adds a Theme Drift test to Tools > Site Health: Site Editor changes that
+ * Adds a Block Theme Ops test to Tools > Site Health: Site Editor changes that
  * hide a newer theme file are a recommended fix.
  */
 final class SiteHealth implements Service {
@@ -140,7 +140,7 @@ final class SiteHealth implements Service {
 			),
 			'status'      => 'recommended',
 			'description' => '<p>' . esc_html__( 'A lock stops new saves. It does not remove a copy saved earlier, so the site still ignores the theme file for these items. Reset them to the theme file.', 'block-theme-ops' ) . '</p>' . $list,
-			'actions'     => sprintf( '<p><a href="%s">%s</a></p>', esc_url( DriftPage::url() ), esc_html__( 'Open Theme Drift', 'block-theme-ops' ) ),
+			'actions'     => sprintf( '<p><a href="%s">%s</a></p>', esc_url( DriftPage::url() ), esc_html__( 'Open Block Theme Ops', 'block-theme-ops' ) ),
 		);
 	}
 
@@ -159,7 +159,7 @@ final class SiteHealth implements Service {
 				}
 			)
 		);
-		$actions = sprintf( '<p><a href="%s">%s</a></p>', esc_url( DriftPage::url( array( 'status' => Drift::THEME_CHANGED ) ) ), esc_html__( 'Open Theme Drift', 'block-theme-ops' ) );
+		$actions = sprintf( '<p><a href="%s">%s</a></p>', esc_url( DriftPage::url( array( 'status' => Drift::THEME_CHANGED ) ) ), esc_html__( 'Open Block Theme Ops', 'block-theme-ops' ) );
 
 		if ( $changed ) {
 			$list = '<ul>';

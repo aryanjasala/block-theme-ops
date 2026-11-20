@@ -111,7 +111,7 @@ final class Notice implements Service {
 
 		/**
 		 * Filters the admin screens that show the notice about Site Editor changes hiding newer theme files.
-		 * Theme Drift itself never shows it, and Site Health always carries the same finding.
+		 * Block Theme Ops itself never shows it, and Site Health always carries the same finding.
 		 *
 		 * @param string[] $screens Screen IDs. Default dashboard, themes, site-editor and update-core.
 		 */
@@ -166,7 +166,7 @@ final class Notice implements Service {
 		<div class="notice notice-warning block-theme-ops-notice">
 			<p><strong><?php esc_html_e( 'Block Theme Ops', 'block-theme-ops' ); ?>:</strong> <?php echo esc_html( $message ); ?></p>
 			<div class="block-theme-ops-notice__actions" style="display:flex;align-items:center;gap:12px;margin:0 0 10px">
-				<a class="button button-primary" href="<?php echo esc_url( DriftPage::url( array( 'status' => Drift::THEME_CHANGED ) ) ); ?>"><?php esc_html_e( 'Review in Theme Drift', 'block-theme-ops' ); ?></a>
+				<a class="button button-primary" href="<?php echo esc_url( DriftPage::url( array( 'status' => Drift::THEME_CHANGED ) ) ); ?>"><?php esc_html_e( 'Review in Block Theme Ops', 'block-theme-ops' ); ?></a>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:0">
 					<?php wp_nonce_field( DriftPage::ACTION ); ?>
 					<input type="hidden" name="action" value="<?php echo esc_attr( DriftPage::ACTION ); ?>">

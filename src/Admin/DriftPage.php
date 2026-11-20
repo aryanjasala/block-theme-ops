@@ -1,6 +1,6 @@
 <?php
 /**
- * Appearance > Theme Drift.
+ * Appearance > Block Theme Ops.
  *
  * @package AryanX\Axle\BlockThemeOps
  */
@@ -11,9 +11,11 @@ use AryanX\Axle\BlockThemeOps\Abilities;
 use AryanX\Axle\BlockThemeOps\Alerts;
 use AryanX\Axle\BlockThemeOps\Backups;
 use AryanX\Axle\BlockThemeOps\Drift;
+use AryanX\Axle\BlockThemeOps\BlockMerge;
 use AryanX\Axle\BlockThemeOps\Exporter;
 use AryanX\Axle\BlockThemeOps\Importer;
 use AryanX\Axle\BlockThemeOps\Locks;
+use AryanX\Axle\BlockThemeOps\Merger;
 use AryanX\Axle\BlockThemeOps\Markup;
 use AryanX\Axle\BlockThemeOps\Operations;
 use AryanX\Axle\BlockThemeOps\Service;
@@ -90,6 +92,13 @@ final class DriftPage implements Service {
 	private Locks $locks;
 
 	/**
+	 * Merges.
+	 *
+	 * @var Merger
+	 */
+	private Merger $merger;
+
+	/**
 	 * Sets up the screen.
 	 *
 	 * @param Drift      $drift      Inventory.
@@ -100,8 +109,9 @@ final class DriftPage implements Service {
 	 * @param Alerts     $alerts     Pending alerts.
 	 * @param Importer   $importer   Import.
 	 * @param Locks      $locks      Locks.
+	 * @param Merger     $merger     Merges.
 	 */
-	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Settings $settings, Alerts $alerts, Importer $importer, Locks $locks ) {
+	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Backups $backups, Settings $settings, Alerts $alerts, Importer $importer, Locks $locks, Merger $merger ) {
 		$this->drift      = $drift;
 		$this->operations = $operations;
 		$this->exporter   = $exporter;
@@ -110,6 +120,7 @@ final class DriftPage implements Service {
 		$this->alerts     = $alerts;
 		$this->importer   = $importer;
 		$this->locks      = $locks;
+		$this->merger     = $merger;
 	}
 
 	/**
@@ -122,13 +133,13 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Capability needed to see and change Theme Drift.
+	 * Capability needed to see and change Block Theme Ops.
 	 *
 	 * @return string
 	 */
 	public static function capability(): string {
 		/**
-		 * Filters the capability needed for Theme Drift, its abilities and WP-CLI-free actions.
+		 * Filters the capability needed for Block Theme Ops, its abilities and WP-CLI-free actions.
 		 *
 		 * @param string $capability Default edit_theme_options, the capability the Site Editor needs.
 		 */
@@ -148,16 +159,16 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Registers Appearance > Theme Drift, with the number of unreviewed alerts.
+	 * Registers Appearance > Block Theme Ops, with the number of unreviewed alerts.
 	 */
 	public function add_page(): void {
 		$count = count( $this->alerts->ids() );
-		$menu  = __( 'Theme Drift', 'block-theme-ops' );
+		$menu  = __( 'Block Theme Ops', 'block-theme-ops' );
 		if ( $count ) {
 			$menu .= sprintf( ' <span class="awaiting-mod count-%1$d"><span class="pending-count">%1$d</span></span>', $count );
 		}
 
-		$hook = add_theme_page( __( 'Theme Drift', 'block-theme-ops' ), $menu, self::capability(), self::SLUG, array( $this, 'render' ) );
+		$hook = add_theme_page( __( 'Block Theme Ops', 'block-theme-ops' ), $menu, self::capability(), self::SLUG, array( $this, 'render' ) );
 		if ( $hook ) {
 			add_action( "admin_print_styles-{$hook}", array( $this, 'enqueue' ) );
 			add_action( "load-{$hook}", array( $this, 'help' ) );
@@ -175,7 +186,7 @@ final class DriftPage implements Service {
 			array(
 				'id'      => 'overview',
 				'title'   => __( 'Overview', 'block-theme-ops' ),
-				'content' => '<p>' . esc_html__( 'When someone saves a template, a template part or the styles in the Site Editor, WordPress keeps a copy in the database and the site ignores the theme file from then on. Theme Drift lists those copies and how each one relates to its theme file.', 'block-theme-ops' ) . '</p>',
+				'content' => '<p>' . esc_html__( 'When someone saves a template, a template part or the styles in the Site Editor, WordPress keeps a copy in the database and the site ignores the theme file from then on. Block Theme Ops lists those copies and how each one relates to its theme file.', 'block-theme-ops' ) . '</p>',
 			),
 		);
 
@@ -188,7 +199,7 @@ final class DriftPage implements Service {
 			$tabs[] = array(
 				'id'      => 'import-undo',
 				'title'   => __( 'Undo', 'block-theme-ops' ),
-				'content' => '<p>' . esc_html__( 'Every import keeps a backup of what it overwrites. One Undo on the Backups tab puts everything back for 30 days. An item that someone changed again since is left alone.', 'block-theme-ops' ) . '</p>',
+				'content' => '<p>' . esc_html__( 'Every import keeps a backup of what it overwrites. One Undo on the Block Theme Ops screen puts everything back for 30 days. An item that someone changed again since is left alone.', 'block-theme-ops' ) . '</p>',
 			);
 		} elseif ( 'locks' === $tab ) {
 			$tabs[] = array(
@@ -201,12 +212,6 @@ final class DriftPage implements Service {
 				'title'   => __( 'Environments', 'block-theme-ops' ),
 				'content' => '<p>' . esc_html__( 'Locks only apply on the environment types you tick, production by default. Set WP_ENVIRONMENT_TYPE in wp-config.php to tell WordPress which one a site is.', 'block-theme-ops' ) . '</p>',
 			);
-		} elseif ( 'backups' === $tab ) {
-			$tabs[] = array(
-				'id'      => 'backups-undo',
-				'title'   => __( 'Undo', 'block-theme-ops' ),
-				'content' => '<p>' . esc_html__( 'Each reset and each import keeps a backup. Undo puts the database copy back as it was. A backup is deleted when its undo time has passed.', 'block-theme-ops' ) . '</p>',
-			);
 		} elseif ( 'settings' === $tab ) {
 			$tabs[] = array(
 				'id'      => 'settings-github',
@@ -218,6 +223,16 @@ final class DriftPage implements Service {
 				'id'      => 'statuses',
 				'title'   => __( 'Statuses', 'block-theme-ops' ),
 				'content' => '<p>' . esc_html__( 'Theme changed: the theme file changed after the edit, so the site ignores it. Customized: changed in the Site Editor and the file has not changed since. Database only: no theme file behind it. Identical: the same as the theme file, safe to reset.', 'block-theme-ops' ) . '</p>',
+			);
+			$tabs[] = array(
+				'id'      => 'merge',
+				'title'   => __( 'Merge', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Merge takes the theme\'s new version of a template or part and keeps your changes too. Blocks only one side changed merge on their own. A block both sides changed is a conflict: you choose which version to keep. You see the result before anything is saved, and one Undo puts your earlier copy back.', 'block-theme-ops' ) . '</p>',
+			);
+			$tabs[] = array(
+				'id'      => 'undo',
+				'title'   => __( 'Undo', 'block-theme-ops' ),
+				'content' => '<p>' . esc_html__( 'Each reset, merge and import keeps a backup. Undo, in the list under the items, puts the database copy back as it was. A backup is deleted when its undo time has passed.', 'block-theme-ops' ) . '</p>',
 			);
 			$tabs[] = array(
 				'id'      => 'reset-keep',
@@ -235,13 +250,13 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Adds a Theme Drift link on the Plugins screen.
+	 * Adds a Block Theme Ops link on the Plugins screen.
 	 *
 	 * @param string[] $links Action links.
 	 * @return string[]
 	 */
 	public function add_link( array $links ): array {
-		array_unshift( $links, sprintf( '<a href="%s">%s</a>', esc_url( self::url() ), esc_html__( 'Theme Drift', 'block-theme-ops' ) ) );
+		array_unshift( $links, sprintf( '<a href="%s">%s</a>', esc_url( self::url() ), esc_html__( 'Block Theme Ops', 'block-theme-ops' ) ) );
 
 		return $links;
 	}
@@ -268,27 +283,33 @@ final class DriftPage implements Service {
 	 */
 	public function render(): void {
 		if ( ! current_user_can( self::capability() ) ) {
-			wp_die( esc_html__( 'You are not allowed to see Theme Drift.', 'block-theme-ops' ), 403 );
+			wp_die( esc_html__( 'You are not allowed to see Block Theme Ops.', 'block-theme-ops' ), 403 );
 		}
 
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Navigation only.
 		$tab     = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
 		$item_id = isset( $_GET['item'] ) ? absint( wp_unslash( $_GET['item'] ) ) : 0;
 		$review  = isset( $_GET['review'] ) ? sanitize_key( wp_unslash( $_GET['review'] ) ) : '';
+		$merge   = ! empty( $_GET['merge'] );
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
+		// Backups used to be a tab. Old links land on the list, where Undo is now.
+		if ( 'backups' === $tab ) {
+			$tab = '';
+		}
+
 		echo '<div class="wrap axle-ui bto-page">';
-		if ( $item_id ) {
+		if ( $item_id && $merge ) {
+			$this->render_merge( $item_id );
+		} elseif ( $item_id ) {
 			$this->render_item( $item_id );
 		} else {
-			echo '<h1 class="wp-heading-inline">' . esc_html__( 'Theme Drift', 'block-theme-ops' ) . '</h1>';
+			echo '<h1 class="wp-heading-inline">' . esc_html__( 'Block Theme Ops', 'block-theme-ops' ) . '</h1>';
 			echo '<hr class="wp-header-end">';
 			$this->render_notice();
 			$this->render_tabs( $tab );
 			echo '<div id="bto-confirm-slot" class="bto-confirm-slot"></div>';
-			if ( 'backups' === $tab ) {
-				$this->render_backups();
-			} elseif ( 'settings' === $tab ) {
+			if ( 'settings' === $tab ) {
 				$this->render_settings();
 			} elseif ( 'import' === $tab ) {
 				$this->render_import( $review );
@@ -296,6 +317,7 @@ final class DriftPage implements Service {
 				$this->render_locks();
 			} else {
 				$this->render_list();
+				$this->render_undo();
 			}
 		}
 		AxleUi::footer();
@@ -312,11 +334,10 @@ final class DriftPage implements Service {
 			''         => __( 'Drift', 'block-theme-ops' ),
 			'import'   => __( 'Import', 'block-theme-ops' ),
 			'locks'    => __( 'Locks', 'block-theme-ops' ),
-			'backups'  => __( 'Backups', 'block-theme-ops' ),
 			'settings' => __( 'Settings', 'block-theme-ops' ),
 		);
 
-		echo '<nav class="nav-tab-wrapper bto-tabs" aria-label="' . esc_attr__( 'Theme Drift sections', 'block-theme-ops' ) . '">';
+		echo '<nav class="nav-tab-wrapper bto-tabs" aria-label="' . esc_attr__( 'Block Theme Ops sections', 'block-theme-ops' ) . '">';
 		foreach ( $tabs as $tab => $label ) {
 			printf(
 				'<a href="%s" class="nav-tab%s"%s>%s</a>',
@@ -526,9 +547,9 @@ final class DriftPage implements Service {
 	private function render_item( int $id ): void {
 		$item = $this->drift->get( $id );
 
-		echo '<p class="bto-back"><a href="' . esc_url( self::url() ) . '">' . esc_html( self::back_arrow() ) . ' ' . esc_html__( 'Theme Drift', 'block-theme-ops' ) . '</a></p>';
+		echo '<p class="bto-back"><a href="' . esc_url( self::url() ) . '">' . esc_html( self::back_arrow() ) . ' ' . esc_html__( 'Block Theme Ops', 'block-theme-ops' ) . '</a></p>';
 		if ( null === $item ) {
-			echo '<h1>' . esc_html__( 'Theme Drift', 'block-theme-ops' ) . '</h1>';
+			echo '<h1>' . esc_html__( 'Block Theme Ops', 'block-theme-ops' ) . '</h1>';
 			$this->render_notice();
 			echo '<p>' . esc_html__( 'This item is not a Site Editor change of the active theme, or it no longer exists.', 'block-theme-ops' ) . '</p>';
 			return;
@@ -584,12 +605,30 @@ final class DriftPage implements Service {
 		</dl>
 		</section>
 
+		<?php
+		$merge_reason = Drift::THEME_CHANGED === $item['status'] ? $this->merger->blocker( $item ) : '-';
+		$can_merge    = '' === $merge_reason;
+		?>
 		<section class="axle-card">
 		<div class="axle-actions bto-actions">
+			<?php if ( $can_merge ) : ?>
+				<a class="button button-primary bto-merge-link" href="
+				<?php
+				echo esc_url(
+					self::url(
+						array(
+							'item'  => $item['id'],
+							'merge' => 1,
+						) 
+					) 
+				);
+				?>
+																		"><?php esc_html_e( 'Merge theme changes', 'block-theme-ops' ); ?></a>
+			<?php endif; ?>
 			<?php if ( '' !== $item['file'] ) : ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form" <?php $this->confirm_attributes(); ?>>
 					<?php $this->hidden( 'reset', (int) $item['id'] ); ?>
-					<button type="submit" class="button button-primary"><?php esc_html_e( 'Reset to theme file', 'block-theme-ops' ); ?></button>
+					<button type="submit" class="button<?php echo $can_merge ? '' : ' button-primary'; ?>"><?php esc_html_e( 'Reset to theme file', 'block-theme-ops' ); ?></button>
 				</form>
 			<?php endif; ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form">
@@ -609,6 +648,11 @@ final class DriftPage implements Service {
 				<?php endif; ?>
 			</form>
 		</div>
+		<?php if ( $can_merge ) : ?>
+			<p class="description bto-merge-hint"><?php esc_html_e( 'Merge keeps your changes and takes the theme\'s new ones. You see the result first.', 'block-theme-ops' ); ?></p>
+		<?php elseif ( '-' !== $merge_reason && Drift::THEME_CHANGED === $item['status'] ) : ?>
+			<p class="description bto-merge-hint"><?php echo esc_html( $merge_reason ); ?></p>
+		<?php endif; ?>
 		<?php if ( ! $this->exporter->provider()->is_configured() ) : ?>
 			<p class="description bto-pr-hint" id="bto-pr-hint"><?php $this->settings_hint(); ?></p>
 		<?php endif; ?>
@@ -655,6 +699,224 @@ final class DriftPage implements Service {
 	}
 
 	/**
+	 * The conflict choices in the address or the form, cleaned.
+	 *
+	 * @param mixed $raw Raw `choice` value from the request. Every key and value is checked against a fixed pattern.
+	 * @return array<string, string>
+	 */
+	private static function clean_choices( $raw ): array {
+		$choices = array();
+		foreach ( is_array( $raw ) ? $raw : array() as $id => $choice ) {
+			$id = (string) $id;
+			if ( preg_match( '/^[co][0-9.]*$/', $id ) && in_array( $choice, array( BlockMerge::OURS, BlockMerge::THEIRS ), true ) ) {
+				$choices[ $id ] = (string) $choice;
+			}
+		}
+
+		return $choices;
+	}
+
+	/**
+	 * What a conflict is about, in plain words.
+	 *
+	 * @param array $conflict From BlockMerge.
+	 * @return string
+	 */
+	private static function conflict_text( array $conflict ): string {
+		switch ( $conflict['kind'] ) {
+			case BlockMerge::REMOVED_THEIR:
+				return __( 'The theme removed this block, and you changed it on this site.', 'block-theme-ops' );
+			case BlockMerge::REMOVED_OUR:
+				return __( 'You removed this block on this site, and the theme changed it.', 'block-theme-ops' );
+			case BlockMerge::ORDER:
+				return __( 'The theme and this site both moved blocks into a different order here.', 'block-theme-ops' );
+			default:
+				return __( 'Both the theme and this site changed this block.', 'block-theme-ops' );
+		}
+	}
+
+	/**
+	 * A block name as words: core/site-title becomes Site title.
+	 *
+	 * @param string $name Block name.
+	 * @return string
+	 */
+	private static function block_label( string $name ): string {
+		if ( '' === $name ) {
+			return __( 'Blocks', 'block-theme-ops' );
+		}
+		$name = (string) preg_replace( '#^[a-z0-9-]+/#', '', $name );
+
+		return ucfirst( trim( str_replace( array( '-', '_' ), ' ', $name ) ) );
+	}
+
+	/**
+	 * Prints the merge of a theme update into one customized item: what merges on its own, a choice for each
+	 * conflict, the rendered result, and the button that saves it.
+	 *
+	 * @param int $id Post ID.
+	 */
+	private function render_merge( int $id ): void {
+		$item = $this->drift->get( $id );
+
+		echo '<p class="bto-back"><a href="' . esc_url( self::url( null === $item ? array() : array( 'item' => $id ) ) ) . '">' . esc_html( self::back_arrow() ) . ' ' . esc_html( null === $item ? __( 'Block Theme Ops', 'block-theme-ops' ) : $item['title'] ) . '</a></p>';
+		if ( null === $item ) {
+			echo '<h1>' . esc_html__( 'Block Theme Ops', 'block-theme-ops' ) . '</h1>';
+			echo '<p>' . esc_html__( 'This item is not a Site Editor change of the active theme, or it no longer exists.', 'block-theme-ops' ) . '</p>';
+			return;
+		}
+		if ( ! current_user_can( 'edit_post', $id ) ) {
+			wp_die( esc_html__( 'You are not allowed to change this item.', 'block-theme-ops' ), 403 );
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only preview, and clean_choices() checks every key and value.
+		$choices = self::clean_choices( isset( $_GET['choice'] ) ? wp_unslash( $_GET['choice'] ) : array() );
+		$plan    = $this->merger->plan( $item, $choices );
+		?>
+		<h1 class="bto-item-title">
+			<?php
+			/* translators: %s: template or part name. */
+			echo esc_html( sprintf( __( 'Merge theme changes into %s', 'block-theme-ops' ), $item['title'] ) );
+			?>
+		</h1>
+		<hr class="wp-header-end">
+		<?php $this->render_notice(); ?>
+		<div id="bto-confirm-slot" class="bto-confirm-slot"></div>
+		<?php
+		if ( is_wp_error( $plan ) ) {
+			echo '<div class="notice notice-warning inline bto-merge-blocked"><p>' . esc_html( $plan->get_error_message() ) . '</p></div>';
+			return;
+		}
+		?>
+		<p class="axle-intro bto-intro"><?php esc_html_e( 'The theme file changed after this item was saved in the Site Editor. This keeps your changes and takes the theme\'s new ones, block by block. Nothing is saved until you press Merge.', 'block-theme-ops' ); ?></p>
+
+		<section class="axle-card bto-merge-summary">
+			<h2 class="axle-card__title"><?php esc_html_e( 'What the theme changed', 'block-theme-ops' ); ?></h2>
+			<?php
+			$labels = array(
+				'added'   => __( 'Added', 'block-theme-ops' ),
+				'removed' => __( 'Removed', 'block-theme-ops' ),
+				'changed' => __( 'Changed', 'block-theme-ops' ),
+			);
+			if ( $plan['applied'] ) :
+				?>
+				<p>
+					<?php
+					/* translators: %d: number of changes. */
+					echo esc_html( sprintf( _n( '%d change from the theme is added without any conflict with your changes.', '%d changes from the theme are added without any conflict with your changes.', count( $plan['applied'] ), 'block-theme-ops' ), count( $plan['applied'] ) ) );
+					?>
+				</p>
+				<ul class="bto-list bto-merge-applied">
+					<?php foreach ( $plan['applied'] as $change ) : ?>
+						<li><span class="axle-badge axle-badge--info"><?php echo esc_html( $labels[ $change['action'] ] ?? $change['action'] ); ?></span> <?php echo esc_html( self::block_label( $change['name'] ) ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			<?php else : ?>
+				<p class="axle-muted"><?php esc_html_e( 'Nothing merges on its own: every change of the theme overlaps one of yours.', 'block-theme-ops' ); ?></p>
+			<?php endif; ?>
+		</section>
+
+		<form method="get" action="<?php echo esc_url( admin_url( 'themes.php' ) ); ?>" class="bto-merge-choices">
+			<input type="hidden" name="page" value="<?php echo esc_attr( self::SLUG ); ?>">
+			<input type="hidden" name="item" value="<?php echo esc_attr( (string) $id ); ?>">
+			<input type="hidden" name="merge" value="1">
+
+			<?php if ( $plan['conflicts'] ) : ?>
+				<section class="axle-card bto-merge-conflicts" id="bto-merge-conflicts">
+					<h2 class="axle-card__title">
+						<?php
+						/* translators: %d: number of conflicts. */
+						echo esc_html( sprintf( _n( '%d conflict needs your choice', '%d conflicts need your choice', count( $plan['conflicts'] ), 'block-theme-ops' ), count( $plan['conflicts'] ) ) );
+						?>
+					</h2>
+					<?php foreach ( $plan['conflicts'] as $index => $conflict ) : ?>
+						<?php
+						$field    = 'bto-choice-' . ( $index + 1 );
+						$position = '' === $conflict['path'] ? '' : implode( ' > ', array_map( static fn( string $part ): string => (string) ( (int) $part + 1 ), explode( '.', $conflict['path'] ) ) );
+						$show     = static function ( ?array $block ): string {
+							return null === $block ? __( 'This block is removed.', 'block-theme-ops' ) : Markup::pretty( serialize_block( $block ), str_repeat( "\u{00A0}", 4 ) );
+						};
+	?>
+						<fieldset class="bto-conflict" data-id="<?php echo esc_attr( $conflict['id'] ); ?>">
+							<legend>
+								<?php echo esc_html( BlockMerge::ORDER === $conflict['kind'] ? __( 'Order of the blocks', 'block-theme-ops' ) : self::block_label( $conflict['name'] ) ); ?>
+								<?php if ( '' !== $position ) : ?>
+									<span class="axle-muted bto-muted">
+										<?php
+										/* translators: %s: position such as 2 > 1. */
+										echo esc_html( sprintf( __( '(position %s)', 'block-theme-ops' ), $position ) );
+										?>
+									</span>
+								<?php endif; ?>
+							</legend>
+							<p class="description"><?php echo esc_html( self::conflict_text( $conflict ) ); ?></p>
+							<?php if ( BlockMerge::ORDER !== $conflict['kind'] ) : ?>
+								<div class="axle-diff axle-diff--labelled" dir="ltr">
+									<del data-label="<?php esc_attr_e( 'This site', 'block-theme-ops' ); ?>"><?php echo esc_html( $show( $conflict['ours'] ) ); ?></del>
+									<ins data-label="<?php esc_attr_e( 'Theme file now', 'block-theme-ops' ); ?>"><?php echo esc_html( $show( $conflict['theirs'] ) ); ?></ins>
+								</div>
+							<?php endif; ?>
+							<p class="bto-choice">
+								<input type="radio" id="<?php echo esc_attr( $field ); ?>-ours" name="choice[<?php echo esc_attr( $conflict['id'] ); ?>]" value="<?php echo esc_attr( BlockMerge::OURS ); ?>" <?php checked( BlockMerge::OURS, $conflict['choice'] ); ?>>
+								<label for="<?php echo esc_attr( $field ); ?>-ours"><?php esc_html_e( 'Keep this site\'s version', 'block-theme-ops' ); ?></label>
+								&nbsp;
+								<input type="radio" id="<?php echo esc_attr( $field ); ?>-theirs" name="choice[<?php echo esc_attr( $conflict['id'] ); ?>]" value="<?php echo esc_attr( BlockMerge::THEIRS ); ?>" <?php checked( BlockMerge::THEIRS, $conflict['choice'] ); ?>>
+								<label for="<?php echo esc_attr( $field ); ?>-theirs"><?php esc_html_e( 'Use the theme\'s version', 'block-theme-ops' ); ?></label>
+							</p>
+						</fieldset>
+					<?php endforeach; ?>
+					<p><button type="submit" class="button bto-merge-preview"><?php esc_html_e( 'Update the preview', 'block-theme-ops' ); ?></button></p>
+				</section>
+			<?php endif; ?>
+		</form>
+
+		<section class="axle-card bto-merge-result" id="bto-merge-result">
+			<h2 class="axle-card__title"><?php esc_html_e( 'The result, as the page shows it', 'block-theme-ops' ); ?></h2>
+			<?php if ( ! $plan['resolved'] ) : ?>
+				<p class="axle-muted"><?php esc_html_e( 'Conflicts you have not chosen yet show this site\'s version.', 'block-theme-ops' ); ?></p>
+			<?php endif; ?>
+			<iframe class="bto-merge-frame" sandbox="" title="<?php esc_attr_e( 'Rendered result of the merge', 'block-theme-ops' ); ?>" srcdoc="<?php echo esc_attr( Merger::preview_document( $plan['markup'] ) ); ?>"></iframe>
+			<p class="description"><?php esc_html_e( 'Blocks that show posts or the page content are empty here, because there is no page behind a template.', 'block-theme-ops' ); ?></p>
+		</section>
+
+		<?php
+		$this->diff(
+			'bto-diff-merge',
+			__( 'What changes on this site', 'block-theme-ops' ),
+			__( 'The block markup of this item now, and after the merge.', 'block-theme-ops' ),
+			Markup::pretty( (string) $plan['ours'], str_repeat( "\u{00A0}", 4 ) ),
+			Markup::pretty( (string) $plan['markup'], str_repeat( "\u{00A0}", 4 ) ),
+			__( 'This site now', 'block-theme-ops' ),
+			__( 'After the merge', 'block-theme-ops' )
+		);
+		?>
+
+		<section class="axle-card">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-merge-apply" data-bto-busy="<?php esc_attr_e( 'Merging.', 'block-theme-ops' ); ?>">
+				<?php $this->hidden( 'merge_apply', $id, array( 'plan_key' => $plan['key'] ) ); ?>
+				<?php foreach ( $choices as $conflict_id => $choice ) : ?>
+					<input type="hidden" name="choice[<?php echo esc_attr( $conflict_id ); ?>]" value="<?php echo esc_attr( $choice ); ?>">
+				<?php endforeach; ?>
+				<div class="axle-actions bto-actions">
+					<button type="submit" class="button button-primary bto-merge-go" aria-describedby="bto-merge-undo"<?php disabled( ! $plan['resolved'] ); ?>><?php esc_html_e( 'Merge', 'block-theme-ops' ); ?></button>
+					<a class="button" href="<?php echo esc_url( self::url( array( 'item' => $id ) ) ); ?>"><?php esc_html_e( 'Cancel', 'block-theme-ops' ); ?></a>
+				</div>
+				<p class="description" id="bto-merge-undo">
+					<?php
+					if ( $plan['resolved'] ) {
+						/* translators: %d: number of days. */
+						echo esc_html( sprintf( _n( 'Makes one backup of this item first. Undo for %d day.', 'Makes one backup of this item first. Undo for %d days.', Backups::days(), 'block-theme-ops' ), Backups::days() ) );
+					} else {
+						esc_html_e( 'Choose a version for every conflict, then press Update the preview, to be able to merge.', 'block-theme-ops' );
+					}
+					?>
+				</p>
+			</form>
+		</section>
+		<?php
+	}
+
+	/**
 	 * Prints a diff section.
 	 *
 	 * @param string $id          Element ID.
@@ -690,27 +952,23 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Prints the backups that can still be undone.
+	 * Prints the card of resets, merges and imports that can still be undone.
 	 */
-	private function render_backups(): void {
+	private function render_undo(): void {
 		$backups = $this->backups->all();
+		if ( ! $backups ) {
+			return;
+		}
 		?>
-		<p class="axle-intro bto-intro">
+		<section class="axle-card bto-undo-card" id="bto-undo">
+		<h2 class="axle-card__title"><?php esc_html_e( 'Undo', 'block-theme-ops' ); ?></h2>
+		<p class="axle-muted bto-intro">
 			<?php
 			/* translators: %d: number of days. */
-			echo esc_html( sprintf( _n( 'Every reset and every import keeps a backup of what it changes for %d day. Undo puts it back as it was.', 'Every reset and every import keeps a backup of what it changes for %d days. Undo puts it back as it was.', Backups::days(), 'block-theme-ops' ), Backups::days() ) );
+			echo esc_html( sprintf( _n( 'Every reset, merge and import keeps a backup of what it changes for %d day. Undo puts it back as it was.', 'Every reset, merge and import keeps a backup of what it changes for %d days. Undo puts it back as it was.', Backups::days(), 'block-theme-ops' ), Backups::days() ) );
 			?>
 		</p>
-		<?php if ( ! $backups ) : ?>
-			<div class="axle-empty bto-empty">
-				<p><strong><?php esc_html_e( 'No resets or imports to undo.', 'block-theme-ops' ); ?></strong></p>
-				<p><?php esc_html_e( 'When you reset an item to its theme file, or import changes from another site, the backup shows up here until its undo time has passed.', 'block-theme-ops' ); ?></p>
-			</div>
-			<?php
-			return;
-		endif;
-		?>
-		<div class="axle-scroll" tabindex="0" role="region" aria-label="<?php esc_attr_e( 'Backups', 'block-theme-ops' ); ?>">
+		<div class="axle-scroll" tabindex="0" role="region" aria-label="<?php esc_attr_e( 'Changes that can be undone', 'block-theme-ops' ); ?>">
 		<table class="wp-list-table widefat fixed striped bto-backups">
 			<thead>
 				<tr>
@@ -718,12 +976,19 @@ final class DriftPage implements Service {
 					<th scope="col"><?php esc_html_e( 'Theme', 'block-theme-ops' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Changed', 'block-theme-ops' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Can be undone until', 'block-theme-ops' ); ?></th>
-					<th scope="col"><span class="screen-reader-text"><?php esc_html_e( 'Actions', 'block-theme-ops' ); ?></span></th>
 				</tr>
 			</thead>
 			<tbody>
 				<?php foreach ( $backups as $backup ) : ?>
-					<?php $is_import = 'import' === ( $backup['kind'] ?? '' ); ?>
+					<?php
+					$kind      = (string) ( $backup['kind'] ?? '' );
+					$is_import = 'import' === $kind;
+					$blocker   = $is_import ? '' : $this->operations->undo_blocker( $backup );
+					$labels    = array(
+						'import'     => __( 'Undo import', 'block-theme-ops' ),
+						Merger::KIND => __( 'Undo merge', 'block-theme-ops' ),
+					);
+					?>
 					<tr class="bto-backup" data-id="<?php echo esc_attr( (string) $backup['id'] ); ?>">
 						<td class="column-primary">
 							<strong><?php echo esc_html( (string) ( $backup['item']['title'] ?? $backup['title'] ) ); ?></strong>
@@ -746,6 +1011,21 @@ final class DriftPage implements Service {
 							<?php else : ?>
 								<span class="bto-type"><?php echo esc_html( Drift::type_label( (string) $backup['post_type'] ) ); ?> &middot; <code dir="ltr"><?php echo esc_html( (string) ( $backup['item']['key'] ?? $backup['slug'] ) ); ?></code></span>
 							<?php endif; ?>
+							<?php if ( '' === $blocker ) : ?>
+								<div class="row-actions visible">
+									<span>
+										<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-undo-row">
+											<?php $this->hidden( 'undo', (int) $backup['id'] ); ?>
+											<button type="submit" class="button-link"><?php echo esc_html( $labels[ $kind ] ?? __( 'Undo reset', 'block-theme-ops' ) ); ?></button>
+										</form>
+									</span>
+								</div>
+							<?php else : ?>
+								<p class="bto-blocked" data-reason="<?php echo esc_attr( $blocker ); ?>">
+									<span class="axle-badge axle-badge--<?php echo esc_attr( Operations::RESTORED === $blocker ? 'good' : 'warning' ); ?>"><?php echo esc_html( Operations::RESTORED === $blocker ? __( 'Back already', 'block-theme-ops' ) : __( 'Customized again since', 'block-theme-ops' ) ); ?></span><br>
+									<?php echo esc_html( Operations::blocked_message( $blocker, $backup ) ); ?>
+								</p>
+							<?php endif; ?>
 						</td>
 						<td><?php echo esc_html( (string) $backup['theme'] ); ?></td>
 						<td>
@@ -755,25 +1035,12 @@ final class DriftPage implements Service {
 							?>
 						</td>
 						<td><?php echo wp_kses( AxleUi::relative_time( (int) $backup['undo_until'] ), self::time_tags() ); ?></td>
-						<td>
-							<?php $blocker = $is_import ? '' : $this->operations->undo_blocker( $backup ); ?>
-							<?php if ( '' === $blocker ) : ?>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form">
-									<?php $this->hidden( 'undo', (int) $backup['id'], array( 'tab' => 'backups' ) ); ?>
-									<button type="submit" class="button"><?php echo esc_html( $is_import ? __( 'Undo import', 'block-theme-ops' ) : __( 'Undo reset', 'block-theme-ops' ) ); ?></button>
-								</form>
-							<?php else : ?>
-								<p class="bto-blocked" data-reason="<?php echo esc_attr( $blocker ); ?>">
-									<span class="axle-badge axle-badge--<?php echo esc_attr( Operations::RESTORED === $blocker ? 'good' : 'warning' ); ?>"><?php echo esc_html( Operations::RESTORED === $blocker ? __( 'Back already', 'block-theme-ops' ) : __( 'Customized again since', 'block-theme-ops' ) ); ?></span><br>
-									<?php echo esc_html( Operations::blocked_message( $blocker, $backup ) ); ?>
-								</p>
-							<?php endif; ?>
-						</td>
 					</tr>
 				<?php endforeach; ?>
 			</tbody>
 		</table>
 		</div>
+		</section>
 		<?php
 	}
 
@@ -870,6 +1137,10 @@ final class DriftPage implements Service {
 			?>
 		</p>
 
+		<?php if ( $can_run ) : ?>
+			<p class="axle-intro bto-intro bto-review-intro"><?php esc_html_e( 'Choose which items to bring over. Items you changed here too are not ticked for you, and nothing changes until you press Import selected items.', 'block-theme-ops' ); ?></p>
+		<?php endif; ?>
+
 		<?php if ( Importer::THEME_OTHER === $status ) : ?>
 			<div class="notice notice-error inline bto-theme-other"><p><?php esc_html_e( 'These are not the files of this theme, so nothing can be imported. Export from a site that runs the same theme, or from its child or parent theme.', 'block-theme-ops' ); ?></p></div>
 		<?php endif; ?>
@@ -918,7 +1189,7 @@ final class DriftPage implements Service {
 			</div>
 		<?php endif; ?>
 
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-review" data-bto-confirm-import_apply="<?php esc_attr_e( 'Import {count} selected item(s)? Each one it overwrites is backed up first. You can undo the whole import from the Backups tab for 30 days.', 'block-theme-ops' ); ?>" data-bto-busy="<?php esc_attr_e( 'Importing.', 'block-theme-ops' ); ?>">
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bto-form bto-review" data-bto-confirm-import_apply="<?php esc_attr_e( 'Import {count} selected item(s)? Each one it overwrites is backed up first. You can undo the whole import from the Undo list for 30 days.', 'block-theme-ops' ); ?>" data-bto-busy="<?php esc_attr_e( 'Importing.', 'block-theme-ops' ); ?>">
 			<?php $this->hidden( 'import_apply', 0, array( 'tab' => 'import' ) ); ?>
 			<input type="hidden" name="token" value="<?php echo esc_attr( $token ); ?>">
 
@@ -990,9 +1261,17 @@ final class DriftPage implements Service {
 			</table>
 			</div>
 
+			<?php if ( $can_run ) : ?>
+				<p class="description bto-import-undo" id="bto-import-undo">
+					<?php
+					/* translators: %d: number of days. */
+					echo esc_html( sprintf( _n( 'Makes one backup of everything it overwrites. Undo for %d day.', 'Makes one backup of everything it overwrites. Undo for %d days.', Backups::days(), 'block-theme-ops' ), Backups::days() ) );
+					?>
+				</p>
+			<?php endif; ?>
 			<p class="submit bto-review-actions">
 				<?php if ( $can_run ) : ?>
-					<button type="submit" class="button button-primary bto-import-go"><?php esc_html_e( 'Import selected items', 'block-theme-ops' ); ?></button>
+					<button type="submit" class="button button-primary bto-import-go" aria-describedby="bto-import-undo"><?php esc_html_e( 'Import selected items', 'block-theme-ops' ); ?></button>
 				<?php endif; ?>
 				<button type="submit" name="task" value="import_discard" class="button" formnovalidate><?php esc_html_e( 'Discard this upload', 'block-theme-ops' ); ?></button>
 			</p>
@@ -1070,7 +1349,7 @@ final class DriftPage implements Service {
 		$locks  = $this->locks->get();
 		$items  = $this->locks->theme_items();
 		$can    = current_user_can( Locks::capability() );
-		$env    = function_exists( 'wp_get_environment_type' ) ? wp_get_environment_type() : 'production';
+		$env    = AxleUi::environment_type();
 		$status = array();
 		foreach ( $this->drift->items() as $item ) {
 			$status[ $item['key'] ] = $item;
@@ -1199,8 +1478,12 @@ final class DriftPage implements Service {
 			</table>
 			</section>
 
-			<section class="axle-card">
-			<h2 class="axle-card__title"><?php esc_html_e( 'GitHub pull requests', 'block-theme-ops' ); ?></h2>
+			<?php
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Navigation only.
+			$github_used = '' !== (string) $settings['repo'] || '' !== $source || ! empty( $_GET['github'] );
+			?>
+			<details class="axle-card bto-github"<?php echo $github_used ? ' open' : ''; ?>>
+			<summary class="axle-card__title bto-github__summary"><?php esc_html_e( 'GitHub pull requests', 'block-theme-ops' ); ?><?php echo $github_used ? '' : ' <span class="axle-muted">' . esc_html__( '(not used, open to set up)', 'block-theme-ops' ) . '</span>'; ?></summary>
 			<p><?php esc_html_e( 'Send Site Editor changes to the theme\'s repository as a pull request, so they end up in the theme files. Only the files you export are sent, and only when you ask.', 'block-theme-ops' ); ?></p>
 			<table class="form-table" role="presentation">
 				<tr>
@@ -1247,7 +1530,7 @@ final class DriftPage implements Service {
 					</td>
 				</tr>
 			</table>
-			</section>
+			</details>
 			<?php submit_button( __( 'Save settings', 'block-theme-ops' ) ); ?>
 		</form>
 		<?php
@@ -1293,6 +1576,9 @@ final class DriftPage implements Service {
 			case 'export':
 			case 'pr':
 				$this->handle_items( $task, $ids, $back );
+				break;
+			case 'merge_apply':
+				$this->handle_merge( $id, $back );
 				break;
 			case 'reset_identical':
 				$this->handle_reset_identical( $back );
@@ -1423,6 +1709,44 @@ final class DriftPage implements Service {
 	}
 
 	/**
+	 * Merges a theme update into one item.
+	 *
+	 * @param int   $id   Post ID.
+	 * @param array $back Where to go afterwards.
+	 */
+	private function handle_merge( int $id, array $back ): void {
+		$item = $this->drift->get( $id );
+		if ( null === $item || ! current_user_can( 'edit_post', $id ) ) {
+			$this->done( 'error', __( 'You are not allowed to change this item, or it no longer exists. Nothing was changed.', 'block-theme-ops' ), array() );
+			return;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- check_admin_referer() ran in handle(), and clean_choices() checks every key and value.
+		$choices  = self::clean_choices( isset( $_POST['choice'] ) ? wp_unslash( $_POST['choice'] ) : array() );
+		$expected = isset( $_POST['plan_key'] ) ? sanitize_key( wp_unslash( $_POST['plan_key'] ) ) : '';
+		// phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+		$result = $this->merger->apply( $item, $choices, $expected );
+		if ( is_wp_error( $result ) ) {
+			$back['merge'] = 1;
+			$this->done( 'error', $result->get_error_message(), $back );
+			return;
+		}
+
+		unset( $back['merge'] );
+		$this->done(
+			'success',
+			sprintf(
+				/* translators: %d: number of changes taken from the theme. */
+				_n( 'Merged. %d change from the theme was added and your changes were kept. A backup is kept.', 'Merged. %d changes from the theme were added and your changes were kept. A backup is kept.', count( $result['plan']['applied'] ), 'block-theme-ops' ),
+				count( $result['plan']['applied'] )
+			),
+			$back,
+			array( 'undo' => (int) $result['backup'] )
+		);
+	}
+
+	/**
 	 * Resets every identical item.
 	 *
 	 * @param array $back Where to go afterwards.
@@ -1441,7 +1765,7 @@ final class DriftPage implements Service {
 	}
 
 	/**
-	 * Undoes a reset or an import.
+	 * Undoes a reset, a merge or an import.
 	 *
 	 * @param int   $backup_id Backup ID.
 	 * @param array $back      Where to go afterwards.
@@ -1469,6 +1793,11 @@ final class DriftPage implements Service {
 				$message .= ' ' . sprintf( __( 'Left alone: %s', 'block-theme-ops' ), implode( ' ', $list ) );
 			}
 			$this->done( $result['skipped'] ? 'warning' : 'success', $message, array() );
+			return;
+		}
+
+		if ( 'merge' === $result['kind'] ) {
+			$this->done( 'success', __( 'Merge undone. Your earlier copy is back.', 'block-theme-ops' ), array( 'item' => $result['post_id'] ) );
 			return;
 		}
 
@@ -1715,7 +2044,18 @@ final class DriftPage implements Service {
 					<a href="<?php echo esc_url( (string) $notice['url'] ); ?>" class="bto-pr-link" target="_blank" rel="noopener noreferrer"><?php echo esc_html( (string) $notice['url'] ); ?></a>
 				<?php endif; ?>
 				<?php if ( ! empty( $notice['settings'] ) ) : ?>
-					<a href="<?php echo esc_url( self::url( array( 'tab' => 'settings' ) ) ); ?>" class="bto-settings-link"><?php esc_html_e( 'Open the GitHub settings', 'block-theme-ops' ); ?></a>
+					<a href="
+					<?php
+					echo esc_url(
+						self::url(
+							array(
+								'tab'    => 'settings',
+								'github' => 1,
+							) 
+						) 
+					);
+					?>
+								" class="bto-settings-link"><?php esc_html_e( 'Open the GitHub settings', 'block-theme-ops' ); ?></a>
 				<?php endif; ?>
 			</p>
 			<?php if ( ! empty( $notice['undo'] ) ) : ?>
@@ -1765,7 +2105,7 @@ final class DriftPage implements Service {
 		$target = $this->exporter->provider()->target();
 		printf(
 			'data-bto-confirm-reset="%s" data-bto-confirm-pr="%s"',
-			esc_attr__( 'Reset to the theme file? The database copy is deleted and the site uses the theme file again. A backup is kept, and you can undo this for 30 days from the Backups tab.', 'block-theme-ops' ),
+			esc_attr__( 'Reset to the theme file? The database copy is deleted and the site uses the theme file again. A backup is kept, and you can undo this for 30 days from the Undo list.', 'block-theme-ops' ),
 			esc_attr(
 				'' !== $target
 					/* translators: %s: repository and branch. */
@@ -1852,7 +2192,14 @@ final class DriftPage implements Service {
 		printf(
 			/* translators: %s: link to the Settings tab. */
 			esc_html__( 'Pull requests need a repository and a token. Set them up under %s first.', 'block-theme-ops' ),
-			'<a href="' . esc_url( self::url( array( 'tab' => 'settings' ) ) ) . '">' . esc_html__( 'Settings', 'block-theme-ops' ) . '</a>'
+			'<a href="' . esc_url(
+				self::url(
+					array(
+						'tab'    => 'settings',
+						'github' => 1,
+					) 
+				) 
+			) . '">' . esc_html__( 'Settings', 'block-theme-ops' ) . '</a>'
 		);
 	}
 

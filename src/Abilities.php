@@ -55,6 +55,13 @@ final class Abilities implements Service {
 	private Locks $locks;
 
 	/**
+	 * Merges.
+	 *
+	 * @var Merger
+	 */
+	private Merger $merger;
+
+	/**
 	 * Sets up the abilities.
 	 *
 	 * @param Drift      $drift      Inventory.
@@ -62,13 +69,15 @@ final class Abilities implements Service {
 	 * @param Exporter   $exporter   Export.
 	 * @param Importer   $importer   Import.
 	 * @param Locks      $locks      Locks.
+	 * @param Merger     $merger     Merges.
 	 */
-	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Importer $importer, Locks $locks ) {
+	public function __construct( Drift $drift, Operations $operations, Exporter $exporter, Importer $importer, Locks $locks, Merger $merger ) {
 		$this->drift      = $drift;
 		$this->operations = $operations;
 		$this->exporter   = $exporter;
 		$this->importer   = $importer;
 		$this->locks      = $locks;
+		$this->merger     = $merger;
 	}
 
 	/**
@@ -202,7 +211,7 @@ final class Abilities implements Service {
 		$this->ability(
 			'reset-to-theme',
 			__( 'Reset to the theme file', 'block-theme-ops' ),
-			__( 'Throws away the database copy of one item, or of every identical item, so the site uses the theme file again. A backup is kept and the reset can be undone from Appearance > Theme Drift > Backups for 30 days.', 'block-theme-ops' ),
+			__( 'Throws away the database copy of one item, or of every identical item, so the site uses the theme file again. A backup is kept and the reset can be undone from Appearance > Block Theme Ops > Backups for 30 days.', 'block-theme-ops' ),
 			array(
 				'type'                 => 'object',
 				'properties'           => array(
@@ -234,6 +243,90 @@ final class Abilities implements Service {
 				),
 			),
 			array( $this, 'reset_to_theme' ),
+			$permission,
+			array(
+				'readonly'    => false,
+				'destructive' => true,
+				'idempotent'  => false,
+			)
+		);
+
+		$choices_input = array(
+			'type'                 => 'object',
+			'description'          => __( 'A choice for each conflict, by conflict ID from preview-merge: ours keeps this site\'s version, theirs takes the theme\'s.', 'block-theme-ops' ),
+			'additionalProperties' => array(
+				'type' => 'string',
+				'enum' => array( BlockMerge::OURS, BlockMerge::THEIRS ),
+			),
+		);
+
+		$this->ability(
+			'preview-merge',
+			__( 'Preview merging a theme update', 'block-theme-ops' ),
+			__( 'For a template or part whose theme file changed after it was customized in the Site Editor: works out a block-level three-way merge (the theme file when it was saved, this site\'s copy, the theme file now). Lists the changes that merge on their own and the conflicts that need a choice, and returns the merged markup. Changes nothing.', 'block-theme-ops' ),
+			array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'item'    => $ref,
+					'choices' => $choices_input,
+				),
+				'required'             => array( 'item' ),
+				'additionalProperties' => false,
+			),
+			array(
+				'type'       => 'object',
+				'properties' => array(
+					'can_merge' => array( 'type' => 'boolean' ),
+					'reason'    => array( 'type' => 'string' ),
+					'resolved'  => array( 'type' => 'boolean' ),
+					'applied'   => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'object' ),
+					),
+					'conflicts' => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'object' ),
+					),
+					'merged'    => array( 'type' => 'string' ),
+				),
+			),
+			array( $this, 'preview_merge' ),
+			$permission,
+			array(
+				'readonly'   => true,
+				'idempotent' => true,
+			)
+		);
+
+		$this->ability(
+			'merge-theme-update',
+			__( 'Merge a theme update into a customized template', 'block-theme-ops' ),
+			__( 'Saves the block-level merge of the theme file now into this site\'s copy of a template or part, keeping the site\'s changes. Every conflict needs a choice first. A backup is kept and the merge can be undone with undo-change.', 'block-theme-ops' ),
+			array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'item'    => $ref,
+					'choices' => $choices_input,
+				),
+				'required'             => array( 'item' ),
+				'additionalProperties' => false,
+			),
+			array(
+				'type'       => 'object',
+				'properties' => array(
+					'key'        => array( 'type' => 'string' ),
+					'backup_id'  => array( 'type' => 'integer' ),
+					'applied'    => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'object' ),
+					),
+					'undo_until' => array(
+						'type'        => 'string',
+						'description' => 'ISO 8601, UTC.',
+					),
+				),
+			),
+			array( $this, 'merge_theme_update' ),
 			$permission,
 			array(
 				'readonly'    => false,
@@ -384,14 +477,14 @@ final class Abilities implements Service {
 
 		$this->ability(
 			'undo-change',
-			__( 'Undo a reset or an import', 'block-theme-ops' ),
-			__( 'Brings back what a reset or an import changed, from its backup. An item that was changed again since is left alone and listed.', 'block-theme-ops' ),
+			__( 'Undo a reset, a merge or an import', 'block-theme-ops' ),
+			__( 'Brings back what a reset, a merge or an import changed, from its backup. An item that was changed again since is left alone and listed.', 'block-theme-ops' ),
 			array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'backup_id' => array(
 						'type'        => 'integer',
-						'description' => __( 'Backup ID, from the reset or import result.', 'block-theme-ops' ),
+						'description' => __( 'Backup ID, from the reset, merge or import result.', 'block-theme-ops' ),
 					),
 				),
 				'required'             => array( 'backup_id' ),
@@ -566,6 +659,102 @@ final class Abilities implements Service {
 			'reset'      => $reset,
 			'undo_until' => gmdate( 'c', time() + Backups::days() * DAY_IN_SECONDS ),
 		);
+	}
+
+	/**
+	 * Ability: the merge of a theme update, without writing.
+	 *
+	 * @param array|null $input Ability input.
+	 * @return array|\WP_Error
+	 */
+	public function preview_merge( $input = null ) {
+		$input = (array) $input;
+		$item  = $this->drift->get( (string) ( $input['item'] ?? '' ) );
+		if ( null === $item || ! self::can_touch( $item ) ) {
+			return new \WP_Error( 'block_theme_ops_not_found', __( 'No Site Editor change of the active theme matches that item.', 'block-theme-ops' ) );
+		}
+
+		$reason = $this->merger->blocker( $item );
+		if ( '' !== $reason ) {
+			return array(
+				'can_merge' => false,
+				'reason'    => $reason,
+				'resolved'  => false,
+				'applied'   => array(),
+				'conflicts' => array(),
+				'merged'    => '',
+			);
+		}
+
+		$plan = $this->merger->plan( $item, self::choices_of( $input ) );
+		if ( is_wp_error( $plan ) ) {
+			return $plan;
+		}
+
+		return array(
+			'can_merge' => true,
+			'reason'    => '',
+			'resolved'  => $plan['resolved'],
+			'applied'   => $plan['applied'],
+			'conflicts' => array_map(
+				static function ( array $conflict ): array {
+					return array(
+						'id'     => $conflict['id'],
+						'kind'   => $conflict['kind'],
+						'block'  => $conflict['name'],
+						'path'   => $conflict['path'],
+						'choice' => $conflict['choice'],
+						'ours'   => null === $conflict['ours'] ? '' : serialize_block( $conflict['ours'] ),
+						'theirs' => null === $conflict['theirs'] ? '' : serialize_block( $conflict['theirs'] ),
+					);
+				},
+				$plan['conflicts']
+			),
+			'merged'    => $plan['markup'],
+		);
+	}
+
+	/**
+	 * Ability: merges a theme update into a customized item.
+	 *
+	 * @param array|null $input Ability input.
+	 * @return array|\WP_Error
+	 */
+	public function merge_theme_update( $input = null ) {
+		$input = (array) $input;
+		$item  = $this->drift->get( (string) ( $input['item'] ?? '' ) );
+		if ( null === $item || ! self::can_touch( $item ) ) {
+			return new \WP_Error( 'block_theme_ops_not_found', __( 'No Site Editor change of the active theme matches that item.', 'block-theme-ops' ) );
+		}
+
+		$done = $this->merger->apply( $item, self::choices_of( $input ) );
+		if ( is_wp_error( $done ) ) {
+			return $done;
+		}
+
+		return array(
+			'key'        => (string) $item['key'],
+			'backup_id'  => (int) $done['backup'],
+			'applied'    => $done['plan']['applied'],
+			'undo_until' => gmdate( 'c', time() + Backups::days() * DAY_IN_SECONDS ),
+		);
+	}
+
+	/**
+	 * Conflict choices of an ability input.
+	 *
+	 * @param array $input Ability input.
+	 * @return array<string, string>
+	 */
+	private static function choices_of( array $input ): array {
+		$choices = array();
+		foreach ( (array) ( $input['choices'] ?? array() ) as $id => $choice ) {
+			if ( in_array( $choice, array( BlockMerge::OURS, BlockMerge::THEIRS ), true ) ) {
+				$choices[ (string) $id ] = (string) $choice;
+			}
+		}
+
+		return $choices;
 	}
 
 	/**

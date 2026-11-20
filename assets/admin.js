@@ -1,5 +1,5 @@
 /**
- * Appearance > Theme Drift: asks in place before a reset, an import or a pull request, shows that
+ * Appearance > Block Theme Ops: asks in place before a reset, an import or a pull request, shows that
  * something is running, and reads results aloud.
  *
  * Hooks, through wp.hooks (read on each submit, so scripts loaded later can hook in):

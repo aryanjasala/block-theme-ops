@@ -1,4 +1,4 @@
-/* Appearance > Theme Drift. Layout only: components, tones and colours come from axle-ui.css. */
+/* Appearance > Block Theme Ops. Layout only: components, tones and colours come from axle-ui.css. */
 
 .bto-tabs {
 	margin-bottom: 0;
@@ -27,6 +27,8 @@
 
 .bto-toolbar {
 	margin-top: 8px;
+	/* The status views above are floated by core; without this the toolbar squeezes in beside them on a phone. */
+	clear: both;
 }
 
 .bto-confirm-slot:empty {
@@ -183,4 +185,63 @@
 
 .bto-token-status {
 	margin: 0 0 6px;
+}
+
+/* Merge a theme update */
+
+.bto-merge-frame {
+	display: block;
+	width: 100%;
+	height: 420px;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+}
+
+.bto-conflict {
+	margin: 0 0 16px;
+	padding: 12px 0 0;
+	border: 0;
+	border-top: 1px solid #dcdcde;
+}
+
+.bto-conflict legend {
+	padding: 0;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.bto-conflict .axle-diff {
+	margin: 8px 0;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+}
+
+.bto-choice label {
+	margin-inline-end: 12px;
+}
+
+.bto-github > summary {
+	cursor: pointer;
+}
+
+.bto-undo-row {
+	display: inline;
+}
+
+.bto-undo-row .button-link {
+	margin: 0;
+}
+
+/* Phones: the bulk toolbar wraps and the file field stays inside the card. */
+
+.bto-toolbar {
+	flex-wrap: wrap;
+}
+
+.bto-toolbar select {
+	max-width: 100%;
+}
+
+.bto-upload input[type="file"] {
+	max-width: 100%;
 }

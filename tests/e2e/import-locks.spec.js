@@ -22,7 +22,7 @@ const stagingIndex = () => themeFile( 'templates/index.html' ).replace( 'Latest 
 const importRow = ( page, key ) => page.locator( `.bto-import-row[data-key="${ key }"]` );
 
 /**
- * Downloads the zip Theme Drift makes for every item, as someone moving changes off staging would.
+ * Downloads the zip Block Theme Ops makes for every item, as someone moving changes off staging would.
  *
  * @param {import('@playwright/test').Page} page Page.
  * @return {Promise<string>} Path of the zip on this computer.
@@ -414,13 +414,13 @@ test.describe( 'Block Theme Ops import and locks', () => {
 		await expect( page.locator( '#tab-link-block-theme-ops-overview' ) ).toBeVisible();
 		await expect( page.locator( '#tab-link-block-theme-ops-statuses' ) ).toBeVisible();
 
-		for ( const [ tab, help ] of [ [ 'import', 'import-preview' ], [ 'locks', 'locks-how' ], [ 'backups', 'backups-undo' ], [ 'settings', 'settings-github' ] ] ) {
+		for ( const [ tab, help ] of [ [ 'import', 'import-preview' ], [ 'locks', 'locks-how' ], [ 'settings', 'settings-github' ] ] ) {
 			await page.goto( `${ PAGE }&tab=${ tab }` );
 			await page.locator( '#contextual-help-link' ).click();
 			await expect( page.locator( `#tab-link-block-theme-ops-${ help }` ) ).toBeVisible();
 		}
-		await page.goto( `${ PAGE }&tab=backups` );
-		await expect( page.locator( '.bto-empty' ) ).toContainText( 'No resets or imports to undo.' );
+		await page.goto( PAGE );
+		await expect( page.locator( '.bto-backups' ) ).toHaveCount( 0 );
 	} );
 
 	test( 'the in-place confirmation moves focus and goes away with Escape', async ( { page, rest } ) => {

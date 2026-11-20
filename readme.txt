@@ -8,7 +8,7 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Find Site Editor changes that override your theme files, see the diff, reset them, send them to Git, move them to another site or lock them.
+Merge a theme update into your Site Editor changes, or reset them, send them to Git, move them to another site or lock them.
 
 == Description ==
 
@@ -25,7 +25,7 @@ Free and open source under the GPL. No pro version, no upsells, no ads in wp-adm
 
 = See what changed =
 
-Appearance > Theme Drift shows the counts per status and a list of every item, with its theme file, when it was saved in the Site Editor and by whom. Open an item for three diffs:
+Appearance > Block Theme Ops shows the counts per status and a list of every item, with its theme file, when it was saved in the Site Editor and by whom. Open an item for three diffs:
 
 * the database copy against the theme file now, which is what a reset throws away
 * the theme file at the time of the edit against the theme file now, which is what the site is ignoring
@@ -33,9 +33,23 @@ Appearance > Theme Drift shows the counts per status and a list of every item, w
 
 To tell those apart, Block Theme Ops keeps a snapshot of the theme file every time a template, part or global styles are saved. For global styles it only reports a theme change when the theme changed a value the user changed too.
 
+= Merge a theme update into your changes =
+
+The theme update fixed the header and added a cart icon. Your header has a change from the Site Editor, so the site shows neither. Until now the choice was Reset (lose your change) or Keep (miss the theme's).
+
+**Merge theme changes** combines both, block by block, using the copy of the theme file taken when you saved your version:
+
+* A change only the theme made, such as the cart icon, is added.
+* A change only you made is kept.
+* A block both of you changed is a conflict. You see the two versions side by side and choose one.
+* You see the result rendered, and the markup before and after, before anything is saved.
+* One backup is made, and Undo puts your earlier copy back for 30 days.
+
+Open a template or part in the Site Editor whose theme file changed since you saved it, and a notice says so, with **See what the theme changed**, **Merge** and **Reset**.
+
 = Fix it =
 
-* **Reset to theme file** deletes the database copy so the theme file takes over. A backup is kept for 30 days and Undo puts it back as it was.
+* **Reset to theme file** deletes the database copy so the theme file takes over. A backup is kept for 30 days and Undo, in the list under the items, puts it back as it was.
 * **Keep** says the database copy is on purpose. It drops out of the list and the alerts until its theme file changes again.
 * **Reset all identical** cleans up copies that match their files in one go.
 
@@ -58,6 +72,9 @@ The zip is only read as text. Files with PHP tags, paths that leave the theme fo
 = Lock templates that belong to Git =
 
 The header is deployed from the theme repository, and someone keeps "fixing" it in the Site Editor. The next deploy is then ignored.
+
+Lock the header, and its Site Editor and REST saves are refused with a message that says where to change it. The navigation menu the header uses is locked with it. Locks apply on the environments you choose, production by default. On a copy that Staging Guard marks as staging they are off, even when WordPress still says production there.
+
 
 * Lock single templates, template parts or the global styles, or everything that comes from the theme, on the Locks tab.
 * A save from the Site Editor or the REST API is refused with a message that says where to change it, and the Site Editor shows a notice when someone opens a locked item, so nobody types for ten minutes first.
@@ -91,7 +108,7 @@ On WordPress 6.9 and later the plugin registers abilities for the drift report, 
 
 == External services ==
 
-Block Theme Ops connects to the GitHub REST API (https://api.github.com) only when an administrator clicks "Open pull request" on Appearance > Theme Drift, or runs `wp block-theme-ops export --pr`. Nothing is sent otherwise, and nothing is sent on a schedule.
+Block Theme Ops connects to the GitHub REST API (https://api.github.com) only when an administrator clicks "Open pull request" on Appearance > Block Theme Ops, or runs `wp block-theme-ops export --pr`. Nothing is sent otherwise, and nothing is sent on a schedule.
 
 When it does, it sends the exported template, template part and theme.json files, the display names of the people who last edited them and when, the site's name and address, and the access token you set. It reads the base branch, creates a commit and a branch, and opens a pull request in the repository you set.
 
@@ -126,7 +143,11 @@ Only what you choose, and only after the preview. Items the live site changed to
 
 = Can a locked template still be changed? =
 
-Not in the Site Editor or through the REST API on the environments where locks apply. Change the theme file and deploy it, or turn the lock off on the Locks tab. A lock does not remove a copy that was saved earlier: reset it from the Drift tab.
+Not in the Site Editor or through the REST API on the environments where locks apply. Change the theme file and deploy it, or turn the lock off on the Locks tab. A lock does not remove a copy that was saved earlier: reset it from the main screen.
+
+= What does Merge do when it cannot tell who changed what? =
+
+It stops and says why. Merge needs the copy of the theme file taken when the item was saved. An item saved before Block Theme Ops was active has no such copy, so only Reset and Keep are offered. Global styles are values, not blocks, so they are not merged either.
 
 = Can it open merge requests on GitLab? =
 
@@ -134,12 +155,15 @@ Not yet. The Git host sits behind an interface, and another one can be plugged i
 
 == Screenshots ==
 
-1. Appearance > Theme Drift: counts per status and every Site Editor change of the active theme.
+1. Appearance > Block Theme Ops: counts per status and every Site Editor change of the active theme.
 2. One template part: the database copy against the theme file now, and what the theme changed since the edit.
 3. A pull request opened on GitHub with the selected Site Editor changes.
 4. The notice after a theme update leaves a Site Editor change behind.
 5. The Import tab: what a zip from another site would change, item by item.
 6. The Locks tab: which templates cannot be saved from the Site Editor.
+7. Merging a theme update: what merges on its own, a choice for the one conflict, and the result.
+8. The Site Editor says the theme changed a template, with the diff, Merge and Reset.
+9. Undo for a merge and a reset, in the list under the items.
 
 == Changelog ==
 
