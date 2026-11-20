@@ -8,7 +8,7 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Find Site Editor changes that override your theme files, merge a theme update into them, reset them, send them to Git, move them to another site or lock them.
+Merge a theme update into your Site Editor changes, or reset them, send them to Git, move them to another site or lock them.
 
 == Description ==
 

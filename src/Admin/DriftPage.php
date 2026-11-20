@@ -2044,7 +2044,18 @@ final class DriftPage implements Service {
 					<a href="<?php echo esc_url( (string) $notice['url'] ); ?>" class="bto-pr-link" target="_blank" rel="noopener noreferrer"><?php echo esc_html( (string) $notice['url'] ); ?></a>
 				<?php endif; ?>
 				<?php if ( ! empty( $notice['settings'] ) ) : ?>
-					<a href="<?php echo esc_url( self::url( array( 'tab' => 'settings', 'github' => 1 ) ) ); ?>" class="bto-settings-link"><?php esc_html_e( 'Open the GitHub settings', 'block-theme-ops' ); ?></a>
+					<a href="
+					<?php
+					echo esc_url(
+						self::url(
+							array(
+								'tab'    => 'settings',
+								'github' => 1,
+							) 
+						) 
+					);
+					?>
+								" class="bto-settings-link"><?php esc_html_e( 'Open the GitHub settings', 'block-theme-ops' ); ?></a>
 				<?php endif; ?>
 			</p>
 			<?php if ( ! empty( $notice['undo'] ) ) : ?>
@@ -2181,7 +2192,14 @@ final class DriftPage implements Service {
 		printf(
 			/* translators: %s: link to the Settings tab. */
 			esc_html__( 'Pull requests need a repository and a token. Set them up under %s first.', 'block-theme-ops' ),
-			'<a href="' . esc_url( self::url( array( 'tab' => 'settings', 'github' => 1 ) ) ) . '">' . esc_html__( 'Settings', 'block-theme-ops' ) . '</a>'
+			'<a href="' . esc_url(
+				self::url(
+					array(
+						'tab'    => 'settings',
+						'github' => 1,
+					) 
+				) 
+			) . '">' . esc_html__( 'Settings', 'block-theme-ops' ) . '</a>'
 		);
 	}
 

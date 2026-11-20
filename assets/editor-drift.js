@@ -12,7 +12,7 @@
 
 	var config = window.blockThemeOpsDrift;
 	var wp = window.wp;
-	if ( ! config || ! wp || ! wp.data || ! wp.apiFetch || ! wp.element || ! wp.components ) {
+	if ( ! config || ! wp || ! wp.data || ! wp.apiFetch || ! wp.element || ! wp.element.createRoot || ! wp.components ) {
 		return;
 	}
 
@@ -77,13 +77,8 @@
 			)
 		);
 
-		if ( wp.element.createRoot ) {
-			modalRoot = wp.element.createRoot( host );
-			modalRoot.render( tree );
-		} else {
-			wp.element.render( tree, host );
-			modalRoot = { unmount: function () { wp.element.unmountComponentAtNode( host ); } };
-		}
+		modalRoot = wp.element.createRoot( host );
+		modalRoot.render( tree );
 	}
 
 	function announce( drift ) {

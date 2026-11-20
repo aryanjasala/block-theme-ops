@@ -298,8 +298,13 @@ class Merger {
 		$styles = function_exists( 'wp_get_global_stylesheet' ) ? (string) wp_get_global_stylesheet() : '';
 		$html   = self::render( parse_blocks( $markup ) );
 
+		// The block styles come from core's own registered handle, printed the way core prints them.
+		ob_start();
+		wp_styles()->do_items( array( 'wp-block-library' ) );
+		$links = (string) ob_get_clean();
+
 		return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-			. '<link rel="stylesheet" href="' . esc_url( includes_url( 'css/dist/block-library/style.min.css' ) ) . '">'
+			. $links
 			. '<style>' . str_replace( '</style', '<\/style', $styles ) . ' body{margin:0;padding:16px}</style>'
 			. '</head><body class="wp-site-blocks">' . $html . '</body></html>';
 	}

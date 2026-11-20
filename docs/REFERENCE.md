@@ -24,14 +24,44 @@ Templates and parts are looked up in the active theme first, then in its parent,
 ## Reset, undo and keep
 
 - **Reset** deletes the database copy of a template or part, or empties the global styles layer, so the theme file takes over. A backup goes into a private `bto_backup` post first. Items without a theme file cannot be reset.
-- **Undo** puts the copy back with its original post ID, theme, area and snapshot, for 30 days by default (`block_theme_ops_backup_days`). It refuses when someone customized the item again since the reset, or when the same database copy is back already, say through an undo in an activity log. The Backups tab says which one up front, instead of offering Undo.
+- **Undo** (in the list under the items on the main screen) puts the copy back with its original post ID, theme, area and snapshot, for 30 days by default (`block_theme_ops_backup_days`). It refuses when someone customized the item again since the reset, or when the same database copy is back already, say through an undo in an activity log. The Undo list says which one up front, instead of offering Undo.
 - **Keep** marks the copy as wanted. It drops out of the list, the notice, Site Health and the email until the theme file changes again. **List again** undoes it.
+
+## Merge a theme update
+
+**Merge theme changes** (on an item whose status is `theme-changed`) combines the theme's new version with the Site Editor copy, so you get the theme's fix without losing your change. Reset throws your change away and Keep ignores the theme's. Merge keeps both where it can.
+
+The three versions are:
+
+- **base**: the snapshot of the theme file, taken when the database copy was saved
+- **ours**: the database copy
+- **theirs**: the theme file now
+
+Each is read with `parse_blocks()` and compared block by block. Blocks have no IDs, so they match by name and attributes first (identical blocks, in order), then by name between blocks that matched, then by name and attributes anywhere. The `theme` attribute that the Site Editor adds to template part blocks, attribute order and whitespace are ignored.
+
+| What happened | Result |
+| --- | --- |
+| Only the theme changed, added or removed a block | The theme's version is used |
+| Only the site changed, added or removed a block | The site's version is kept |
+| Both made the same change | That change |
+| Both changed the same block differently | A **conflict**: keep this site's version or use the theme's |
+| One removed a block the other changed | A conflict: keep it removed, or bring the changed block back |
+| Both moved blocks into different orders | A conflict on the order |
+| Different blocks changed in the same group | Merged inside the group, the group's own settings from whichever side changed them |
+
+If only one side reordered blocks, that order is used. A block both sides changed is one conflict for the whole block, not a text merge inside it, because a text merge could produce markup that no longer matches its attributes.
+
+The merge screen shows what merges on its own, a choice for each conflict (the two versions side by side), the result **rendered** in a sandboxed frame, and the markup before and after. **Merge** stays off until every conflict has a choice, and applies only the result you previewed: if the template or the theme file changes in between, it asks you to look again.
+
+Applying takes one backup (kind `merge`) and writes the merged markup. The snapshot becomes the theme file as it is now, so the next theme update merges from there. **Undo** puts the earlier copy and snapshot back for 30 days, and refuses when someone saved the item again since, so it never throws their work away. Only templates and template parts can be merged: global styles are values, not blocks. An item saved before Block Theme Ops was active has no snapshot of the edit, so it cannot be merged and the screen says why.
+
+In the Site Editor, opening such a template or part shows a notice with **See what the theme changed** (the theme's own diff, in a dialog), **Merge** and **Reset**. The notice reads `GET /wp-json/block-theme-ops/v1/drift?type=wp_template_part&slug=header`, which answers only people who can edit that post, and says `drifted: false` to everyone else.
 
 ## Checks and alerts
 
 The theme files are checked right after WordPress updates or replaces the active theme or its parent (`upgrader_process_complete`), once a day by WP-Cron for deploys that bypass WordPress, and on `wp block-theme-ops check`. Items that went `theme-changed` since the last check, and are not kept, raise:
 
-- a notice for everyone with the capability on the Dashboard, Themes, Site Editor and Updates screens (`block_theme_ops_notice_screens`), and a count on the Theme Drift menu, until they are reset, kept or dismissed
+- a notice for everyone with the capability on the Dashboard, Themes, Site Editor and Updates screens (`block_theme_ops_notice_screens`), and a count on the Block Theme Ops menu, until they are reset, kept or dismissed
 - a Site Health recommendation
 - an email to the site admin, when turned on under **Settings**
 
@@ -53,7 +83,7 @@ The token comes from, in order: the `BLOCK_THEME_OPS_GITHUB_TOKEN` constant, an 
 
 ## Import
 
-**Import** on the Theme Drift screen moves Site Editor changes from one site to another, say staging to production.
+**Import** on the Block Theme Ops screen moves Site Editor changes from one site to another, say staging to production.
 
 1. On the first site, **Download zip** (or `wp block-theme-ops export --zip=<file>`). Besides the theme files, the zip holds `block-theme-ops.json`: the site address, the slug of every navigation menu the markup points at, the address of every media file it uses and the area of each template part.
 2. On the second site, upload the zip on the **Import** tab. Nothing is written yet. A plain zip laid out like the theme (`templates/*.html`, `parts/*.html`, `theme.json`, with or without a folder around them) works too.
@@ -77,8 +107,9 @@ The zip is only read as text. Paths with `..`, absolute paths, symbolic links, a
 Locks stop Site Editor saves of templates that are deployed from your theme repository.
 
 - Lock single items on the **Locks** tab (`templates/<slug>`, `parts/<slug>`, `styles`), or everything that has a theme file. Templates made only in the Site Editor have no theme file and stay open.
-- A locked item is refused on the REST routes the Site Editor saves through (`/wp/v2/templates`, `/wp/v2/template-parts`, `/wp/v2/global-styles`, also autosaves and revisions) with a 403 `block_theme_ops_locked` error, the message and an optional link in its data. The Site Editor shows a notice when someone opens a locked item.
-- Locks are enforced on the environments you tick, by `wp_get_environment_type()`. Production only is the default. Set `WP_ENVIRONMENT_TYPE` in wp-config.php.
+- A locked item is refused on the REST routes the Site Editor saves through (`/wp/v2/templates`, `/wp/v2/template-parts`, `/wp/v2/global-styles`, and a locked item's `/wp/v2/navigation`, also autosaves and revisions) with a 403 `block_theme_ops_locked` error, the message and an optional link in its data. The Site Editor shows a notice when someone opens a locked item.
+- Locks are enforced on the environments you tick, by the environment type Axle reports (`axle_environment_type`, which starts as `wp_get_environment_type()`). Staging Guard answers that filter on a copy it marks as staging, so a copy of production is free to edit even though core still says production there. Production only is the default. Set `WP_ENVIRONMENT_TYPE` in wp-config.php.
+- A **navigation menu** (`wp_navigation` post) that a locked template or part shows, directly or through a template part it includes, is locked with it: its REST route (`/wp/v2/navigation/<id>`) refuses writes and deletes with the same error, and the Site Editor shows the lock notice when the menu is open. Other menus stay open.
 - Nobody can override a lock by default. Turn the lock off on the Locks tab, or give a role the `block_theme_ops_lock_override_capability` capability. Managing locks needs `edit_theme_options` (`block_theme_ops_lock_capability`).
 - Reset, Import and Undo of this plugin write through PHP, not REST, so locks never block them. A lock stops new saves; a copy saved earlier stays until it is reset, and Site Health says so.
 - It works next to Axle Read-Only Mode: a freeze refuses writes of every kind, a lock refuses these items only, and both answer with a clear error.
@@ -87,14 +118,14 @@ Locks stop Site Editor saves of templates that are deployed from your theme repo
 
 | Hook | Type | Use |
 | --- | --- | --- |
-| `block_theme_ops_capability` | filter | `( string $capability )`. Who may use Theme Drift and the abilities. Default `edit_theme_options` |
+| `block_theme_ops_capability` | filter | `( string $capability )`. Who may use Block Theme Ops and the abilities. Default `edit_theme_options` |
 | `block_theme_ops_post_types` | filter | `( string[] $post_types )`. Tracked types. Default `wp_template`, `wp_template_part`, `wp_global_styles`. Other types are dropped |
 | `block_theme_ops_status` | filter | `( string $status, array $item )`. Change one item's status. `db-only` is only allowed for items without a file, and the other statuses only for items with one |
 | `block_theme_ops_check_schedule` | filter | `( string $recurrence )`. How often the scheduled check runs. Default `daily`. Must be a schedule from `wp_get_schedules()` |
 | `block_theme_ops_notify_recipients` | filter | `( string[] $emails, array[] $items )`. Who gets the email. Default the site admin email |
 | `block_theme_ops_notify_email` | filter | `( array $email, array[] $items )`. `to`, `subject`, `message` and `headers` before `wp_mail()`. An empty subject or message sends nothing |
 | `block_theme_ops_notice_message` | filter | `( string $message, array[] $items )`. The admin notice text. Empty hides it |
-| `block_theme_ops_notice_screens` | filter | `( string[] $screen_ids )`. Screens that show the notice. Default `dashboard`, `themes`, `site-editor` and `update-core`. Theme Drift itself never shows it. An empty list shows it nowhere; Site Health still has it |
+| `block_theme_ops_notice_screens` | filter | `( string[] $screen_ids )`. Screens that show the notice. Default `dashboard`, `themes`, `site-editor` and `update-core`. Block Theme Ops itself never shows it. An empty list shows it nowhere; Site Health still has it |
 | `block_theme_ops_undo_blocked_message` | filter | `( string $message, string $reason, array $backup )`. What the Backups tab and Undo say when a reset cannot be undone. `$reason` is `restored` (the same copy is back already) or `customized` (customized again since). Empty falls back to the default |
 | `block_theme_ops_user_name` | filter | `( string $name, int $user_id )`. The name shown for whoever saved, edited or reset an item. Default the display name, `System` when no user was logged in (WP-CLI, WP-Cron, another plugin's undo) or `Deleted user #ID`. Empty falls back to the default |
 | `block_theme_ops_backup_days` | filter | `( int $days )`. How long a reset can be undone. Default 30, kept between 1 and 3650 |
@@ -106,7 +137,7 @@ Locks stop Site Editor saves of templates that are deployed from your theme repo
 | `block_theme_ops_pr_body` | filter | `( string $body, array[] $items, array $files )`. Pull request description, in Markdown |
 | `block_theme_ops_branch_name` | filter | `( string $branch, array[] $items )`. The new branch. Names Git would refuse fall back to the default |
 | `block_theme_ops_git_provider` | filter | `( Provider $provider, Settings $settings )`. Another Git host. Return an `AryanX\Axle\BlockThemeOps\Git\Provider` |
-| `block_theme_ops_import_capability` | filter | `( string $capability )`. Who may import, here and in abilities. Default the Theme Drift capability. Each item is also checked against its post |
+| `block_theme_ops_import_capability` | filter | `( string $capability )`. Who may import, here and in abilities. Default the Block Theme Ops capability. Each item is also checked against its post |
 | `block_theme_ops_import_max_files` | filter | `( int $files )`. Most files in an imported zip. Default 200, kept between 1 and 2000 |
 | `block_theme_ops_import_max_file_size` | filter | `( int $bytes )`. Largest file in the zip once unpacked. Default 1 MiB, kept between 1 KiB and 16 MiB |
 | `block_theme_ops_import_max_size` | filter | `( int $bytes )`. Most the files add up to. Default 4 MiB, kept between 1 KiB and 64 MiB |
@@ -114,7 +145,9 @@ Locks stop Site Editor saves of templates that are deployed from your theme repo
 | `block_theme_ops_import_ttl` | filter | `( int $seconds )`. How long an uploaded zip waits for review. Default one hour, kept between 5 minutes and a day |
 | `block_theme_ops_import_related_theme` | filter | `( bool $related, string $zip_theme, string $active )`. Whether a zip made for another theme may be imported after confirming. Default a child and its parent |
 | `block_theme_ops_import_entries` | filter | `( array[] $entries, array $payload )`. The preview of an import: `key`, `type`, `slug`, `status`, `content` and `live` of each item |
-| `block_theme_ops_lock_capability` | filter | `( string $capability )`. Who may change locks. Default the Theme Drift capability |
+| `block_theme_ops_merge_blocker` | filter | `( string $reason, array $item )`. Return text to stop an item from being merged, shown on the item and in the merge screen. Default empty: it can be merged |
+| `block_theme_ops_locked_navigation_ids` | filter | `( array $ids )`. Navigation post ID => key of the locked item that uses it. Add or remove menus that locks cover |
+| `block_theme_ops_lock_capability` | filter | `( string $capability )`. Who may change locks. Default the Block Theme Ops capability |
 | `block_theme_ops_lock_override_capability` | filter | `( string $capability )`. Who may still save locked items in the Site Editor. Default empty: nobody |
 | `block_theme_ops_lock_environments` | filter | `( string[] $environments )`. Environment types where locks are enforced. Default production, or what the Locks tab says |
 | `block_theme_ops_lock_message` | filter | `( string $message, string $key )`. The text of a refused save and of the Site Editor notice. Empty falls back to the default |
@@ -124,6 +157,8 @@ Locks stop Site Editor saves of templates that are deployed from your theme repo
 | `block_theme_ops_snapshot_saved` | action | `( int $post_id, array $snapshot )`. A snapshot of a theme file was stored |
 | `block_theme_ops_reset` | action | `( array $item, int $backup_id )`. An item was reset to its theme file |
 | `block_theme_ops_reset_undone` | action | `( array $backup, int $post_id )`. A reset was undone |
+| `block_theme_ops_merged` | action | `( array $item, int $backup_id, array $plan )`. A theme update was merged into a database copy. `$plan` has `applied`, `conflicts` (with their choices) and `markup` |
+| `block_theme_ops_merge_undone` | action | `( array $backup, int $post_id )`. A merge was undone |
 | `block_theme_ops_acknowledged` | action | `( array $item )`. Someone chose Keep |
 | `block_theme_ops_backups_expired` | action | `( int[] $backup_ids )`. Backups past their undo window were deleted |
 | `block_theme_ops_exported` | action | `( array $files, array[] $items, string $context )`. Items were exported |
@@ -157,36 +192,39 @@ add_filter( 'block_theme_ops_export_files', function ( $files ) {
 
 Each item is an array: `id` (post ID), `key` (`templates/<slug>`, `parts/<slug>` or `styles`), `type`, `slug`, `title`, `theme`, `file` (path inside the theme, empty when none), `file_theme` (the child or the parent), `status`, `probable`, `kept`, `modified` and `file_modified` (Unix time), `author` and `author_name` (who last saved it, or `System` when no user was logged in).
 
-JavaScript, through `wp.hooks`, on Appearance > Theme Drift:
+JavaScript, through `wp.hooks`, on Appearance > Block Theme Ops:
 
 | Hook | Type | Use |
 | --- | --- | --- |
 | `blockThemeOps.confirmMessage` | filter | `( string message, { action, items } )`. The question asked in place before a reset, an import or a pull request. `{count}` becomes the number of items. Return `''` to skip it |
-| `blockThemeOps.beforeSubmit` | action | `( { action, items } )`. A Theme Drift form is about to be sent. `action` is `reset`, `keep`, `unkeep`, `export`, `pr`, `undo`, `reset_identical`, `import_upload`, `import_apply`, `import_discard` or `save_locks`; `items` are post IDs, or item keys for `import_apply` |
+| `blockThemeOps.beforeSubmit` | action | `( { action, items } )`. A Block Theme Ops form is about to be sent. `action` is `reset`, `keep`, `unkeep`, `export`, `pr`, `undo`, `reset_identical`, `import_upload`, `import_apply`, `import_discard` or `save_locks`; `items` are post IDs, or item keys for `import_apply` |
 
 ```js
 wp.hooks.addFilter( 'blockThemeOps.confirmMessage', 'my-plugin', ( message, details ) => ( 'reset' === details.action ? 'Did you export this first?' : message ) );
 ```
 
-In the Site Editor, when something is locked:
+In the Site Editor:
 
 | Hook | Type | Use |
 | --- | --- | --- |
 | `blockThemeOps.lockMessage` | filter | `( string message, string key )`. The text of the notice shown when a locked item opens |
+| `blockThemeOps.driftMessage` | filter | `( string message, object drift )`. The text of the notice shown when the theme changed a template or part you saved. `drift` has `key`, `auto`, `conflicts`, `canMerge`, `diff` and the two links |
 
 ## Abilities
 
-On WordPress 6.9 and later, Block Theme Ops registers [abilities](https://developer.wordpress.org/apis/abilities/), which AI agents find and run through the [MCP adapter](https://github.com/WordPress/mcp-adapter) and anything else through the REST API under `/wp-abilities/v1/`. Each one is marked public, which the MCP adapter needs before it lists an ability. The drift, diff, reset and export abilities need the Theme Drift capability, and also the edit capability of each post they touch. Import needs the import capability, and locks need the lock capability.
+On WordPress 6.9 and later, Block Theme Ops registers [abilities](https://developer.wordpress.org/apis/abilities/), which AI agents find and run through the [MCP adapter](https://github.com/WordPress/mcp-adapter) and anything else through the REST API under `/wp-abilities/v1/`. Each one is marked public, which the MCP adapter needs before it lists an ability. The drift, diff, reset and export abilities need the Block Theme Ops capability, and also the edit capability of each post they touch. Import needs the import capability, and locks need the lock capability.
 
 | Ability | Does |
 | --- | --- |
 | `block-theme-ops/get-drift-report` | Read-only. Every item with its status, and the counts. Input: `status`, `include_kept` |
 | `block-theme-ops/get-item-diff` | Read-only. The three versions of one `item` and unified diffs: `reset` (file now to database), `theme_changes` (snapshot to file now) and `customization` (snapshot to database) |
+| `block-theme-ops/preview-merge` | Read-only. For one `item` whose theme file changed after it was customized: the changes that merge on their own, the conflicts that need a choice (pass `choices`, conflict ID to `ours` or `theirs`) and the merged markup. Changes nothing |
+| `block-theme-ops/merge-theme-update` | Destructive. Saves that merge after a backup. Every conflict needs a choice in `choices`. Returns the backup ID and when the undo window ends |
 | `block-theme-ops/export-changes` | Read-only. The theme files for `items`, by path. Default: every item that is not identical |
 | `block-theme-ops/reset-to-theme` | Destructive. Resets one `item`, or every identical one with `identical: true`, keeping backups. Returns the backup IDs and when the undo window ends |
 | `block-theme-ops/preview-import` | Read-only. Reads a `zip` (base64) and says what an import would change: each item is new, changed, identical or for another theme, with the navigation menus and media this site lacks. Changes nothing |
 | `block-theme-ops/apply-import` | Destructive. Imports the `zip` (base64), all new and changed items or the keys in `items`, with `confirm_theme` for a child or parent theme. Returns the backup ID and when the undo window ends |
-| `block-theme-ops/undo-change` | Destructive. Undoes a reset or an import from its `backup_id` |
+| `block-theme-ops/undo-change` | Destructive. Undoes a reset, a merge or an import from its `backup_id` |
 | `block-theme-ops/get-locks` | Read-only. What is locked, where it is enforced, and whether it is enforced on this site |
 | `block-theme-ops/set-locks` | Changes the locks, nothing else (idempotent, not destructive). Input: `lock`, `unlock`, `all`, `environments`. Needs the lock capability |
 
@@ -199,6 +237,7 @@ wp block-theme-ops status [--status=<status>] [--kept] [--format=table|csv|json|
 wp block-theme-ops diff <item> [--against=file|theme|snapshot]
 wp block-theme-ops reset <item>... [--yes]
 wp block-theme-ops reset --identical [--yes]
+wp block-theme-ops merge <item> [--dry-run] [--ours=<ids>] [--theirs=<ids>] [--all-ours] [--all-theirs] [--yes]
 wp block-theme-ops undo <backup>
 wp block-theme-ops import <zip> [--dry-run] [--only=<items>] [--confirm-theme] [--yes] [--format=table|csv|json|yaml|count]
 wp block-theme-ops locks [--format=table|csv|json|yaml|count]
@@ -225,6 +264,8 @@ $plugin->drift()->items( array( 'status' => 'theme-changed', 'kept' => false ) )
 $item = $plugin->drift()->get( 'parts/header' );
 $plugin->operations()->reset( $item );           // array( 'item' => ..., 'backup' => 123 ) or WP_Error
 $plugin->operations()->undo( 123 );
+$plan = $plugin->merger()->plan( $item );           // markup, applied changes, conflicts; nothing written
+$plugin->merger()->apply( $item, array( 'c0.1' => 'theirs' ) );  // backs up, then merges; array or WP_Error
 $plugin->exporter()->files( array( $item ), 'cli' );
 $payload = $plugin->importer()->read_zip( '/path/to/staging.zip' );   // array or WP_Error
 $plugin->importer()->plan( $payload );                                // what would change
@@ -244,7 +285,7 @@ $plugin->checker()->run( 'cli' );                // items newly theme-changed
 | `_block_theme_ops_snapshot` post meta | The theme file at the time of the edit: contents, hash, path and time |
 | `_block_theme_ops_editor` post meta | User ID of whoever last saved the item in the Site Editor |
 | `_block_theme_ops_kept`, `_block_theme_ops_notified` post meta | Hash of the theme file when it was kept, and when it was last reported |
-| `bto_backup` posts | Reset items and imports, with the user IDs of who last edited and who reset or imported them, until the undo window ends |
+| `bto_backup` posts | Reset items, merged items and imports, with the user IDs of who last edited and who reset or imported them, until the undo window ends |
 | `block_theme_ops_check` cron event | The scheduled check |
 
 Uninstalling removes all of it on every site of a network. The Site Editor changes themselves stay.
